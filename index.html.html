@@ -1,0 +1,1540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pit Stop Strategy - Endurance Karting</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@900&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --race-red: #ff0033;
+      --race-yellow: #ffcc00;
+      --race-green: #00ff66;
+      --dark-bg: #0a0a0a;
+      --surface: #1a1a1a;
+      --surface-elevated: #252525;
+      --text-primary: #ffffff;
+      --text-secondary: #999999;
+      --border: #333333;
+      --active-driver: #ff0033;
+      --ready-driver: #ffcc00;
+      --waiting-driver: #444444;
+    }
+
+    body {
+      font-family: 'Rajdhani', sans-serif;
+      background: var(--dark-bg);
+      color: var(--text-primary);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    #root {
+      min-height: 100vh;
+      padding-bottom: 2rem;
+    }
+
+    .app-header {
+      background: linear-gradient(135deg, var(--race-red) 0%, #cc0029 100%);
+      padding: 1.5rem 1rem;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(255, 0, 51, 0.3);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .app-title {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.75rem;
+      font-weight: 900;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+    }
+
+    .app-subtitle {
+      font-size: 1.125rem;
+      font-weight: 700;
+      opacity: 0.95;
+      margin-top: 0.5rem;
+      letter-spacing: 1.5px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 1rem;
+    }
+
+    .section {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      border: 1px solid var(--border);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 2px solid var(--border);
+    }
+
+    .section-title {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--race-yellow);
+    }
+
+    .race-timer {
+      background: var(--surface-elevated);
+      padding: 2rem 1.5rem;
+      border-radius: 12px;
+      text-align: center;
+      border: 2px solid var(--race-green);
+      box-shadow: 0 0 20px rgba(0, 255, 102, 0.2);
+      margin-bottom: 1.5rem;
+    }
+
+    .timer-label {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin-bottom: 0.5rem;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .timer-display {
+      font-family: 'Orbitron', monospace;
+      font-size: 3rem;
+      font-weight: 900;
+      color: var(--race-green);
+      text-shadow: 0 0 10px rgba(0, 255, 102, 0.5);
+      letter-spacing: 2px;
+      font-variant-numeric: tabular-nums;
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      display: inline-block;
+      border: 2px solid rgba(0, 255, 102, 0.2);
+    }
+
+    .timer-controls {
+      margin-top: 1.5rem;
+      display: flex;
+      gap: 0.75rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 6px;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .btn-primary {
+      background: var(--race-green);
+      color: var(--dark-bg);
+    }
+
+    .btn-primary:hover {
+      background: #00dd55;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 255, 102, 0.4);
+    }
+
+    .btn-danger {
+      background: var(--race-red);
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background: #cc0029;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(255, 0, 51, 0.4);
+    }
+
+    .btn-secondary {
+      background: var(--surface-elevated);
+      color: white;
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: #333;
+      transform: translateY(-2px);
+    }
+
+    .form-group {
+      margin-bottom: 1.25rem;
+    }
+
+    .form-label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 0.75rem;
+      background: var(--surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: white;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 1rem;
+      transition: all 0.2s ease;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--race-yellow);
+      box-shadow: 0 0 0 2px rgba(255, 204, 0, 0.2);
+    }
+
+    .driver-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .driver-card {
+      background: var(--surface-elevated);
+      padding: 1rem;
+      border-radius: 8px;
+      border-left: 4px solid var(--waiting-driver);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: all 0.3s ease;
+    }
+
+    .driver-card.active {
+      border-left-color: var(--active-driver);
+      background: linear-gradient(90deg, rgba(255, 0, 51, 0.15) 0%, var(--surface-elevated) 100%);
+      box-shadow: 0 2px 12px rgba(255, 0, 51, 0.3);
+    }
+
+    .driver-card.next-up {
+      border-left-color: var(--ready-driver);
+      background: linear-gradient(90deg, rgba(255, 204, 0, 0.15) 0%, var(--surface-elevated) 100%);
+    }
+
+    .driver-info {
+      flex: 1;
+    }
+
+    .driver-name {
+      font-size: 1.125rem;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+    }
+
+    .driver-status {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .status-badge {
+      background: var(--dark-bg);
+      padding: 0.25rem 0.75rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .status-badge.active {
+      background: var(--active-driver);
+      color: white;
+    }
+
+    .status-badge.next {
+      background: var(--ready-driver);
+      color: var(--dark-bg);
+    }
+
+    .driver-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .btn-small {
+      padding: 0.5rem 1rem;
+      font-size: 0.875rem;
+    }
+
+    .add-driver-form {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
+
+    .add-driver-form input {
+      flex: 1;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .stat-card {
+      background: var(--surface-elevated);
+      padding: 1rem;
+      border-radius: 8px;
+      text-align: center;
+      border: 1px solid var(--border);
+    }
+
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-value {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--race-yellow);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 1px;
+    }
+
+    .next-pitstop {
+      background: linear-gradient(135deg, rgba(255, 204, 0, 0.2) 0%, rgba(255, 204, 0, 0.05) 100%);
+      padding: 1.5rem;
+      border-radius: 8px;
+      border: 2px solid var(--race-yellow);
+      margin-top: 1rem;
+      text-align: center;
+    }
+
+    .next-pitstop-label {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin-bottom: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .next-pitstop-time {
+      font-family: 'Orbitron', monospace;
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--race-yellow);
+    }
+
+    .history-item {
+      background: var(--surface-elevated);
+      padding: 1rem;
+      border-radius: 6px;
+      margin-bottom: 0.75rem;
+      border-left: 3px solid var(--race-yellow);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .history-time {
+      font-family: 'Orbitron', monospace;
+      color: var(--race-yellow);
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 1px;
+    }
+
+    .setup-complete {
+      display: none;
+    }
+
+    .setup-active {
+      display: block;
+    }
+
+    @media (max-width: 640px) {
+      .timer-display {
+        font-size: 2.5rem;
+      }
+
+      .section-title {
+        font-size: 1rem;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    .alert {
+      background: var(--surface-elevated);
+      border-left: 4px solid var(--race-yellow);
+      padding: 1rem;
+      border-radius: 6px;
+      margin-bottom: 1rem;
+    }
+
+    .alert-warning {
+      border-left-color: var(--race-red);
+      background: linear-gradient(90deg, rgba(255, 0, 51, 0.15) 0%, var(--surface-elevated) 100%);
+    }
+
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+      border-bottom: 2px solid var(--border);
+    }
+
+    .tab {
+      padding: 0.75rem 1.5rem;
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .tab.active {
+      color: var(--race-yellow);
+      border-bottom-color: var(--race-yellow);
+    }
+
+    .tab:hover {
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    function App() {
+      const [activeTab, setActiveTab] = useState('setup');
+      const [raceStarted, setRaceStarted] = useState(false);
+      const [raceFinished, setRaceFinished] = useState(false);
+      const [racePaused, setRacePaused] = useState(false);
+      const [elapsedTime, setElapsedTime] = useState(0);
+      
+      // Race configuration
+      const [teamName, setTeamName] = useState('');
+      const [trackName, setTrackName] = useState('');
+      const [kartRange, setKartRange] = useState(45); // minutes
+      const [minPitTime, setMinPitTime] = useState(60); // seconds
+      const [pitExitTime, setPitExitTime] = useState(10); // seconds - time from pit bay to exit line
+      const [raceDuration, setRaceDuration] = useState(24); // hours
+      
+      // Drivers
+      const [drivers, setDrivers] = useState([]);
+      const [newDriverName, setNewDriverName] = useState('');
+      const [currentDriverIndex, setCurrentDriverIndex] = useState(0);
+      const [stintStartTime, setStintStartTime] = useState(0);
+      const [nextDriverReady, setNextDriverReady] = useState(false);
+      
+      // Pit stop management
+      const [inPitStop, setInPitStop] = useState(false);
+      const [pitStopStartTime, setPitStopStartTime] = useState(0);
+      const [pitStopElapsedTime, setPitStopElapsedTime] = useState(0);
+      
+      // Pit stop history
+      const [pitStops, setPitStops] = useState([]);
+      
+      const timerRef = useRef(null);
+
+      // Auto-save race state to localStorage
+      useEffect(() => {
+        if (raceStarted) {
+          const raceState = {
+            raceStarted,
+            racePaused,
+            elapsedTime,
+            teamName,
+            trackName,
+            kartRange,
+            minPitTime,
+            pitExitTime,
+            raceDuration,
+            drivers,
+            currentDriverIndex,
+            stintStartTime,
+            nextDriverReady,
+            inPitStop,
+            pitStopStartTime,
+            pitStopElapsedTime,
+            pitStops,
+            lastSaved: new Date().toISOString()
+          };
+          localStorage.setItem('kartraceState', JSON.stringify(raceState));
+        }
+      }, [raceStarted, racePaused, elapsedTime, drivers, currentDriverIndex, stintStartTime, 
+          nextDriverReady, inPitStop, pitStopStartTime, pitStopElapsedTime, pitStops, teamName, trackName, kartRange, 
+          minPitTime, pitExitTime, raceDuration]);
+
+      // Check for saved race on mount
+      useEffect(() => {
+        const savedState = localStorage.getItem('kartraceState');
+        if (savedState && !raceStarted) {
+          const state = JSON.parse(savedState);
+          const timeSaved = new Date(state.lastSaved);
+          const hoursAgo = (new Date() - timeSaved) / (1000 * 60 * 60);
+          
+          // Only prompt to restore if saved within last 48 hours
+          if (hoursAgo < 48) {
+            const restore = confirm(
+              `Found a saved race from ${timeSaved.toLocaleString()}.\n` +
+              `Track: ${state.trackName}\n` +
+              `Race time: ${formatTime(state.elapsedTime)}\n\n` +
+              `Restore this race?`
+            );
+            
+            if (restore) {
+              setRaceStarted(state.raceStarted);
+              setRacePaused(state.racePaused);
+              setElapsedTime(state.elapsedTime);
+              setTeamName(state.teamName || '');
+              setTrackName(state.trackName);
+              setKartRange(state.kartRange);
+              setMinPitTime(state.minPitTime);
+              setPitExitTime(state.pitExitTime);
+              setRaceDuration(state.raceDuration);
+              setDrivers(state.drivers);
+              setCurrentDriverIndex(state.currentDriverIndex);
+              setStintStartTime(state.stintStartTime);
+              setNextDriverReady(state.nextDriverReady || false);
+              setInPitStop(state.inPitStop || false);
+              setPitStopStartTime(state.pitStopStartTime || 0);
+              setPitStopElapsedTime(state.pitStopElapsedTime || 0);
+              setPitStops(state.pitStops);
+              setActiveTab('race');
+            } else {
+              localStorage.removeItem('kartraceState');
+            }
+          } else {
+            // Clean up old saves
+            localStorage.removeItem('kartraceState');
+          }
+        }
+      }, []);
+
+      useEffect(() => {
+        if (raceStarted) {
+          timerRef.current = setInterval(() => {
+            if (!racePaused) {
+              setElapsedTime(prev => prev + 1);
+            }
+            if (inPitStop) {
+              setPitStopElapsedTime(prev => prev + 1);
+            }
+          }, 1000);
+        } else {
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+          }
+        }
+        return () => {
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+          }
+        };
+      }, [raceStarted, racePaused, inPitStop]);
+
+      const formatTime = (seconds) => {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = seconds % 60;
+        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+      };
+
+      const addDriver = () => {
+        if (newDriverName.trim()) {
+          setDrivers([...drivers, {
+            id: Date.now(),
+            name: newDriverName.trim(),
+            stints: 0,
+            totalTime: 0
+          }]);
+          setNewDriverName('');
+        }
+      };
+
+      const removeDriver = (id) => {
+        setDrivers(drivers.filter(d => d.id !== id));
+      };
+
+      const moveDriverUp = (index) => {
+        if (index > 0) {
+          const newDrivers = [...drivers];
+          [newDrivers[index - 1], newDrivers[index]] = [newDrivers[index], newDrivers[index - 1]];
+          setDrivers(newDrivers);
+        }
+      };
+
+      const moveDriverDown = (index) => {
+        if (index < drivers.length - 1) {
+          const newDrivers = [...drivers];
+          [newDrivers[index], newDrivers[index + 1]] = [newDrivers[index + 1], newDrivers[index]];
+          setDrivers(newDrivers);
+        }
+      };
+
+      const startRace = () => {
+        if (drivers.length === 0) {
+          alert('Please add at least one driver!');
+          return;
+        }
+        if (!trackName.trim()) {
+          alert('Please enter a track name!');
+          return;
+        }
+        setRaceStarted(true);
+        setStintStartTime(0);
+        setActiveTab('race');
+      };
+
+      const togglePause = () => {
+        setRacePaused(!racePaused);
+      };
+
+      const resetRace = () => {
+        if (confirm('Are you sure you want to reset the race?')) {
+          setRaceStarted(false);
+          setRaceFinished(false);
+          setRacePaused(false);
+          setElapsedTime(0);
+          setCurrentDriverIndex(0);
+          setStintStartTime(0);
+          setPitStops([]);
+          setDrivers(drivers.map(d => ({ ...d, stints: 0, totalTime: 0 })));
+          setActiveTab('setup');
+          setInPitStop(false);
+          setPitStopStartTime(0);
+          setPitStopElapsedTime(0);
+          // Clear saved state
+          localStorage.removeItem('kartraceState');
+        }
+      };
+
+      const finishRace = () => {
+        if (confirm('End the race and show final results?')) {
+          // Record final stint for current driver
+          const finalStintTime = elapsedTime - stintStartTime;
+          const currentDriver = drivers[currentDriverIndex];
+          
+          const updatedDrivers = [...drivers];
+          updatedDrivers[currentDriverIndex] = {
+            ...currentDriver,
+            totalTime: currentDriver.totalTime + finalStintTime
+          };
+          setDrivers(updatedDrivers);
+          
+          setRaceFinished(true);
+          setRacePaused(true); // Stop the timer
+          setActiveTab('results');
+        }
+      };
+
+      const executePitStop = () => {
+        // Enter pit bay - start the minimum pit time countdown
+        setInPitStop(true);
+        setPitStopStartTime(elapsedTime);
+        setPitStopElapsedTime(0); // Reset pit stop timer
+        // Race timer continues running
+      };
+
+      const completePitStop = () => {
+        const currentStintTime = pitStopStartTime - stintStartTime;
+        const currentDriver = drivers[currentDriverIndex];
+        const actualPitTime = elapsedTime - pitStopStartTime;
+        // Add exit travel time to get total time in pits
+        const totalPitTime = actualPitTime + pitExitTime;
+        
+        // Record pit stop
+        setPitStops([{
+          time: pitStopStartTime,
+          driver: currentDriver.name,
+          stintDuration: currentStintTime,
+          pitDuration: totalPitTime,
+          timestamp: new Date().toLocaleTimeString()
+        }, ...pitStops]);
+
+        // Update driver stats
+        const updatedDrivers = [...drivers];
+        updatedDrivers[currentDriverIndex] = {
+          ...currentDriver,
+          stints: currentDriver.stints + 1,
+          totalTime: currentDriver.totalTime + currentStintTime
+        };
+        setDrivers(updatedDrivers);
+
+        // Move to next driver - new stint starts now (plus exit time to cross the line)
+        const nextIndex = (currentDriverIndex + 1) % drivers.length;
+        setCurrentDriverIndex(nextIndex);
+        setStintStartTime(elapsedTime + pitExitTime);
+        
+        // Exit pit stop mode and reset ready state
+        setInPitStop(false);
+        setPitStopElapsedTime(0);
+        setNextDriverReady(false);
+      };
+
+      const cancelPitStop = () => {
+        setInPitStop(false);
+        setPitStopElapsedTime(0);
+      };
+
+      const emergencyDriverChange = (newDriverIndex) => {
+        if (confirm('Execute emergency driver change?')) {
+          // Enter pit bay for emergency change
+          setInPitStop(true);
+          setPitStopStartTime(elapsedTime);
+          setPitStopElapsedTime(0); // Reset pit timer
+          // Race timer continues running
+          // Store the target driver index for after pit completes
+          window.emergencyTargetDriver = newDriverIndex;
+        }
+      };
+
+      const completeEmergencyPit = () => {
+        const currentStintTime = pitStopStartTime - stintStartTime;
+        const currentDriver = drivers[currentDriverIndex];
+        const actualPitTime = elapsedTime - pitStopStartTime;
+        // Add exit travel time to get total time in pits
+        const totalPitTime = actualPitTime + pitExitTime;
+        
+        setPitStops([{
+          time: pitStopStartTime,
+          driver: currentDriver.name,
+          stintDuration: currentStintTime,
+          pitDuration: totalPitTime,
+          timestamp: new Date().toLocaleTimeString(),
+          emergency: true
+        }, ...pitStops]);
+
+        const updatedDrivers = [...drivers];
+        updatedDrivers[currentDriverIndex] = {
+          ...currentDriver,
+          stints: currentDriver.stints + 1,
+          totalTime: currentDriver.totalTime + currentStintTime
+        };
+        setDrivers(updatedDrivers);
+
+        setCurrentDriverIndex(window.emergencyTargetDriver);
+        setStintStartTime(elapsedTime + pitExitTime);
+        
+        setInPitStop(false);
+        setPitStopElapsedTime(0);
+        setNextDriverReady(false);
+        delete window.emergencyTargetDriver;
+      };
+
+      const currentStintTime = elapsedTime - stintStartTime;
+      const nextPitStopTime = stintStartTime + (kartRange * 60);
+      const timeUntilPit = nextPitStopTime - elapsedTime;
+      const nextDriverIndex = (currentDriverIndex + 1) % drivers.length;
+
+      // Pit stop timer calculations
+      const timeUntilCanExit = inPitStop ? Math.max(0, minPitTime - pitExitTime - pitStopElapsedTime) : 0;
+      const canExit = inPitStop && pitStopElapsedTime >= (minPitTime - pitExitTime);
+      const isEmergency = inPitStop && window.emergencyTargetDriver !== undefined;
+
+      return (
+        <div>
+          <div className="app-header">
+            <div className="app-title">Pit Stop Manager</div>
+            {teamName && <div className="app-subtitle">{teamName}</div>}
+          </div>
+
+          <div className="container">
+            {!raceStarted ? (
+              <div className="section">
+                <div className="section-title">Race Setup</div>
+                
+                <div className="form-group">
+                  <label className="form-label">Team Name</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    value={teamName}
+                    onChange={(e) => setTeamName(e.target.value)}
+                    placeholder="e.g., Racing Legends"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Track Name</label>
+                  <input 
+                    type="text" 
+                    className="form-input" 
+                    value={trackName}
+                    onChange={(e) => setTrackName(e.target.value)}
+                    placeholder="e.g., Silverstone GP"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Kart Range (minutes)</label>
+                  <input 
+                    type="number" 
+                    className="form-input" 
+                    value={kartRange}
+                    onChange={(e) => setKartRange(Number(e.target.value))}
+                    min="20"
+                    max="120"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Minimum Pit Stop Time (seconds)</label>
+                  <input 
+                    type="number" 
+                    className="form-input" 
+                    value={minPitTime}
+                    onChange={(e) => setMinPitTime(Number(e.target.value))}
+                    min="30"
+                    max="300"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Pit Exit Time (seconds)</label>
+                  <input 
+                    type="number" 
+                    className="form-input" 
+                    value={pitExitTime}
+                    onChange={(e) => setPitExitTime(Number(e.target.value))}
+                    min="5"
+                    max="60"
+                  />
+                  <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem'}}>
+                    Time from pit bay to exit line
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Race Duration (hours)</label>
+                  <input 
+                    type="number" 
+                    className="form-input" 
+                    value={raceDuration}
+                    onChange={(e) => setRaceDuration(Number(e.target.value))}
+                    min="1"
+                    max="24"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Driver Order</label>
+                  <div className="driver-list">
+                    {drivers.map((driver, index) => (
+                      <div key={driver.id} className="driver-card">
+                        <div className="driver-info">
+                          <div className="driver-name">{index + 1}. {driver.name}</div>
+                        </div>
+                        <div className="driver-actions">
+                          {index > 0 && (
+                            <button className="btn btn-secondary btn-small" onClick={() => moveDriverUp(index)}>↑</button>
+                          )}
+                          {index < drivers.length - 1 && (
+                            <button className="btn btn-secondary btn-small" onClick={() => moveDriverDown(index)}>↓</button>
+                          )}
+                          <button className="btn btn-danger btn-small" onClick={() => removeDriver(driver.id)}>Remove</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="add-driver-form">
+                    <input 
+                      type="text" 
+                      className="form-input" 
+                      value={newDriverName}
+                      onChange={(e) => setNewDriverName(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && addDriver()}
+                      placeholder="Driver name"
+                    />
+                    <button className="btn btn-primary" onClick={addDriver}>Add</button>
+                  </div>
+                </div>
+
+                <button className="btn btn-primary" style={{width: '100%', marginTop: '1rem'}} onClick={startRace}>
+                  Start Race
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="race-timer">
+                  <div className="timer-label">Race Time</div>
+                  <div className="timer-display">{formatTime(elapsedTime)}</div>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: '1.5rem',
+                    marginTop: '1rem',
+                    fontSize: '0.875rem',
+                    color: 'var(--text-secondary)'
+                  }}>
+                    <div style={{
+                      background: 'var(--surface-elevated)',
+                      padding: '0.5rem 1rem',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border)'
+                    }}>
+                      <span style={{color: 'var(--race-yellow)', fontWeight: '700', fontSize: '1.25rem'}}>
+                        {pitStops.length}
+                      </span>
+                      <span style={{marginLeft: '0.5rem'}}>Pit Stops</span>
+                    </div>
+                    <div>✓ Auto-saving</div>
+                  </div>
+                </div>
+
+                <div className="tabs">
+                  {!raceFinished ? (
+                    <>
+                      <button className={`tab ${activeTab === 'race' ? 'active' : ''}`} onClick={() => setActiveTab('race')}>
+                        Race
+                      </button>
+                      <button className={`tab ${activeTab === 'drivers' ? 'active' : ''}`} onClick={() => setActiveTab('drivers')}>
+                        Drivers
+                      </button>
+                      <button className={`tab ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>
+                        History
+                      </button>
+                      <button className={`tab ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>
+                        Settings
+                      </button>
+                    </>
+                  ) : (
+                    <button className={`tab active`}>
+                      🏁 Final Results
+                    </button>
+                  )}
+                </div>
+
+                {activeTab === 'race' && !raceFinished && (
+                  <>
+                    {inPitStop && (
+                      <div className="section" style={{
+                        background: 'linear-gradient(135deg, rgba(255, 204, 0, 0.2) 0%, var(--surface) 100%)',
+                        border: '2px solid var(--race-yellow)',
+                        boxShadow: '0 0 30px rgba(255, 204, 0, 0.3)'
+                      }}>
+                        <div className="section-title" style={{color: 'var(--race-yellow)', textAlign: 'center', marginBottom: '1.5rem'}}>
+                          🏁 IN PIT BAY 🏁
+                        </div>
+                        
+                        <div style={{
+                          background: 'var(--dark-bg)',
+                          padding: '2rem',
+                          borderRadius: '12px',
+                          textAlign: 'center',
+                          marginBottom: '1.5rem'
+                        }}>
+                          <div className="timer-label">Pit Stop Timer</div>
+                          <div className="timer-display" style={{
+                            color: canExit ? 'var(--race-green)' : 'var(--race-red)',
+                            textShadow: canExit ? '0 0 10px rgba(0, 255, 102, 0.5)' : '0 0 10px rgba(255, 0, 51, 0.5)'
+                          }}>
+                            {formatTime(pitStopElapsedTime)}
+                          </div>
+                        </div>
+
+                        <div className="stats-grid" style={{marginBottom: '1.5rem'}}>
+                          <div className="stat-card">
+                            <div className="stat-label">Min Pit Time</div>
+                            <div className="stat-value" style={{fontSize: '1.25rem'}}>{minPitTime}s</div>
+                          </div>
+                          <div className="stat-card">
+                            <div className="stat-label">Exit Travel Time</div>
+                            <div className="stat-value" style={{fontSize: '1.25rem'}}>{pitExitTime}s</div>
+                          </div>
+                          <div className="stat-card" style={{gridColumn: 'span 2'}}>
+                            <div className="stat-label">Leave Pit Bay At</div>
+                            <div className="stat-value" style={{fontSize: '1.25rem'}}>{minPitTime - pitExitTime}s</div>
+                          </div>
+                        </div>
+
+                        {!canExit && (
+                          <div className="alert alert-warning" style={{marginBottom: '1.5rem'}}>
+                            <strong>WAIT!</strong> You can leave the pit bay in {timeUntilCanExit} seconds
+                          </div>
+                        )}
+
+                        {canExit && (
+                          <div className="alert" style={{
+                            borderLeftColor: 'var(--race-green)',
+                            background: 'linear-gradient(90deg, rgba(0, 255, 102, 0.15) 0%, var(--surface-elevated) 100%)',
+                            marginBottom: '1.5rem'
+                          }}>
+                            <strong>✓ CLEAR TO EXIT</strong> - You can leave the pit bay now
+                          </div>
+                        )}
+
+                        <div style={{display: 'flex', gap: '0.75rem'}}>
+                          <button 
+                            className="btn btn-primary" 
+                            style={{flex: 1, padding: '1rem', opacity: canExit ? 1 : 0.5}}
+                            onClick={isEmergency ? completeEmergencyPit : completePitStop}
+                            disabled={!canExit}
+                          >
+                            {canExit ? '✓ Complete Pit Stop' : `Wait ${timeUntilCanExit}s`}
+                          </button>
+                          <button 
+                            className="btn btn-secondary" 
+                            onClick={cancelPitStop}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+
+                        {isEmergency && (
+                          <div style={{
+                            marginTop: '1rem',
+                            padding: '1rem',
+                            background: 'rgba(255, 0, 51, 0.1)',
+                            borderRadius: '6px',
+                            textAlign: 'center',
+                            color: 'var(--race-red)',
+                            fontWeight: '700'
+                          }}>
+                            ⚠ EMERGENCY DRIVER CHANGE ⚠<br/>
+                            Next: {drivers[window.emergencyTargetDriver]?.name}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {!inPitStop && (
+                      <>
+                    <div className="section">
+                      <div className="section-title">Current Stint</div>
+                      
+                      <div className="driver-card active">
+                        <div className="driver-info">
+                          <div className="driver-name">{drivers[currentDriverIndex]?.name}</div>
+                          <div className="driver-status">
+                            <span className="status-badge active">On Track</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="stats-grid">
+                        <div className="stat-card">
+                          <div className="stat-label">Current Stint</div>
+                          <div className="stat-value">{formatTime(currentStintTime)}</div>
+                        </div>
+                        <div className="stat-card">
+                          <div className="stat-label">Time to Pit</div>
+                          <div className="stat-value" style={{color: timeUntilPit < 300 ? 'var(--race-red)' : 'var(--race-yellow)'}}>
+                            {timeUntilPit > 0 ? formatTime(timeUntilPit) : 'OVERDUE'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {timeUntilPit < 300 && timeUntilPit > 0 && !nextDriverReady && (
+                        <div className="alert alert-warning" style={{marginTop: '1rem'}}>
+                          <strong>Warning:</strong> Pit stop due in {Math.floor(timeUntilPit / 60)} minutes - get {drivers[nextDriverIndex]?.name} ready!
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="section">
+                      <div className="section-title">Next Up</div>
+                      <div className={`driver-card ${nextDriverReady ? 'next-up' : ''}`}>
+                        <div className="driver-info">
+                          <div className="driver-name">{drivers[nextDriverIndex]?.name}</div>
+                          <div className="driver-status">
+                            {nextDriverReady ? (
+                              <span className="status-badge next">✓ Ready</span>
+                            ) : (
+                              <span className="status-badge" style={{background: 'var(--waiting-driver)'}}>Waiting</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {!nextDriverReady && (
+                        <button 
+                          className="btn btn-primary" 
+                          style={{width: '100%', marginTop: '1rem', padding: '1rem'}}
+                          onClick={() => setNextDriverReady(true)}
+                        >
+                          ✓ {drivers[nextDriverIndex]?.name} is Ready
+                        </button>
+                      )}
+
+                      {nextDriverReady && (
+                        <div className="alert" style={{
+                          borderLeftColor: 'var(--race-green)',
+                          background: 'linear-gradient(90deg, rgba(0, 255, 102, 0.15) 0%, var(--surface-elevated) 100%)',
+                          marginTop: '1rem'
+                        }}>
+                          <strong>✓ Driver Ready</strong> - {drivers[nextDriverIndex]?.name} can now enter the kart
+                        </div>
+                      )}
+
+                      {nextDriverReady && (
+                        <button 
+                          className="btn btn-danger" 
+                          style={{
+                            width: '100%', 
+                            marginTop: '1rem', 
+                            padding: '1rem'
+                          }}
+                          onClick={executePitStop}
+                        >
+                          Execute Pit Stop
+                        </button>
+                      )}
+
+                      {drivers.length > 2 && (
+                        <div style={{marginTop: '1rem'}}>
+                          <div style={{fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '0.5rem'}}>
+                            Emergency Driver Change:
+                          </div>
+                          <div style={{display: 'flex', gap: '0.5rem', flexWrap: 'wrap'}}>
+                            {drivers.map((driver, index) => {
+                              if (index === currentDriverIndex) return null;
+                              return (
+                                <button 
+                                  key={driver.id}
+                                  className="btn btn-secondary btn-small"
+                                  onClick={() => emergencyDriverChange(index)}
+                                >
+                                  {driver.name}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    </>
+                    )}
+                  </>
+                )}
+
+                {activeTab === 'drivers' && !raceFinished && (
+                  <div className="section">
+                    <div className="section-title">Driver Statistics</div>
+                    {drivers.map((driver, index) => (
+                      <div 
+                        key={driver.id} 
+                        className={`driver-card ${index === currentDriverIndex ? 'active' : index === nextDriverIndex ? 'next-up' : ''}`}
+                      >
+                        <div className="driver-info">
+                          <div className="driver-name">{driver.name}</div>
+                          <div className="driver-status">
+                            {index === currentDriverIndex && <span className="status-badge active">On Track</span>}
+                            {index === nextDriverIndex && <span className="status-badge next">Next Up</span>}
+                            <span>Stints: {driver.stints}</span>
+                            <span>Total Time: {formatTime(driver.totalTime)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {activeTab === 'history' && !raceFinished && (
+                  <div className="section">
+                    <div className="section-header">
+                      <div className="section-title">Pit Stop History</div>
+                      <div style={{fontSize: '0.875rem', color: 'var(--text-secondary)'}}>
+                        Total: {pitStops.length}
+                      </div>
+                    </div>
+
+                    <div style={{
+                      background: 'var(--surface-elevated)',
+                      padding: '1rem',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border)',
+                      marginBottom: '1.5rem',
+                      textAlign: 'center'
+                    }}>
+                      <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '1px'}}>
+                        Total Time in Pits
+                      </div>
+                      <div style={{
+                        fontFamily: 'Orbitron, monospace',
+                        fontSize: '1.5rem',
+                        fontWeight: '700',
+                        color: 'var(--race-red)',
+                        fontVariantNumeric: 'tabular-nums',
+                        letterSpacing: '1px'
+                      }}>
+                        {formatTime(pitStops.reduce((total, stop) => total + (stop.pitDuration || 0), 0))}
+                      </div>
+                    </div>
+
+                    <div style={{
+                      fontSize: '0.875rem',
+                      color: 'var(--text-secondary)',
+                      marginBottom: '0.75rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '1px'
+                    }}>
+                      Pit Stop Log
+                    </div>
+
+                    {pitStops.length === 0 ? (
+                      <div style={{textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem'}}>
+                        No pit stops yet
+                      </div>
+                    ) : (
+                      pitStops.map((stop, index) => (
+                        <div key={index} className="history-item">
+                          <div>
+                            <div style={{fontWeight: '700', fontSize: '1.125rem'}}>{stop.driver}</div>
+                            <div style={{fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '0.25rem'}}>
+                              Stint: {formatTime(stop.stintDuration)} | Pit: {formatTime(stop.pitDuration || 0)}
+                              {stop.emergency && <span style={{color: 'var(--race-red)', marginLeft: '0.5rem', fontWeight: '700'}}>⚠ EMERGENCY</span>}
+                            </div>
+                          </div>
+                          <div style={{textAlign: 'right'}}>
+                            <div className="history-time">{formatTime(stop.time)}</div>
+                            <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem'}}>{stop.timestamp}</div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+
+                    {drivers.length > 0 && (
+                      <div style={{marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)'}}>
+                        <div style={{
+                          fontSize: '0.875rem',
+                          color: 'var(--text-secondary)',
+                          marginBottom: '0.75rem',
+                          textTransform: 'uppercase',
+                          letterSpacing: '1px'
+                        }}>
+                          Driver Totals
+                        </div>
+                        <div className="driver-list">
+                          {drivers.map((driver, index) => (
+                            <div key={driver.id} className="driver-card">
+                              <div className="driver-info">
+                                <div className="driver-name">{driver.name}</div>
+                                <div className="driver-status">
+                                  <span>Stints: {driver.stints}</span>
+                                  <span>Total Time: {formatTime(driver.totalTime)}</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'results' && raceFinished && (
+                  <>
+                    <div style={{
+                      background: 'linear-gradient(135deg, var(--race-yellow) 0%, #d4a800 100%)',
+                      padding: '2rem 1rem',
+                      borderRadius: '12px',
+                      textAlign: 'center',
+                      marginBottom: '1.5rem',
+                      boxShadow: '0 4px 20px rgba(255, 204, 0, 0.4)'
+                    }}>
+                      <div style={{fontSize: '3rem', marginBottom: '0.5rem'}}>🏁</div>
+                      <div style={{
+                        fontFamily: 'Orbitron, monospace',
+                        fontSize: '1.5rem',
+                        fontWeight: '900',
+                        color: 'var(--dark-bg)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '2px'
+                      }}>
+                        Race Complete
+                      </div>
+                      {teamName && (
+                        <div style={{
+                          fontSize: '1.125rem',
+                          fontWeight: '700',
+                          color: 'var(--dark-bg)',
+                          marginTop: '0.5rem'
+                        }}>
+                          {teamName}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="section">
+                      <div className="section-title">Race Summary</div>
+                      
+                      <div className="stats-grid" style={{gridTemplateColumns: '1fr 1fr', marginBottom: '1.5rem'}}>
+                        <div className="stat-card">
+                          <div className="stat-label">Total Race Time</div>
+                          <div className="stat-value">{formatTime(elapsedTime)}</div>
+                        </div>
+                        <div className="stat-card">
+                          <div className="stat-label">Total Pit Stops</div>
+                          <div className="stat-value">{pitStops.length}</div>
+                        </div>
+                        <div className="stat-card">
+                          <div className="stat-label">Time in Pits</div>
+                          <div className="stat-value" style={{color: 'var(--race-red)'}}>
+                            {formatTime(pitStops.reduce((total, stop) => total + (stop.pitDuration || 0), 0))}
+                          </div>
+                        </div>
+                        <div className="stat-card">
+                          <div className="stat-label">Track</div>
+                          <div className="stat-value" style={{fontSize: '1rem'}}>{trackName}</div>
+                        </div>
+                      </div>
+
+                      <div style={{
+                        padding: '1rem',
+                        background: 'var(--surface-elevated)',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border)',
+                        fontSize: '0.875rem',
+                        color: 'var(--text-secondary)'
+                      }}>
+                        <div style={{display: 'grid', gap: '0.5rem'}}>
+                          <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                            <span>Kart Range:</span>
+                            <span style={{color: 'white'}}>{kartRange} minutes</span>
+                          </div>
+                          <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                            <span>Min Pit Time:</span>
+                            <span style={{color: 'white'}}>{minPitTime} seconds</span>
+                          </div>
+                          <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                            <span>Pit Exit Time:</span>
+                            <span style={{color: 'white'}}>{pitExitTime} seconds</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="section">
+                      <div className="section-title">Driver Performance</div>
+                      <div className="driver-list">
+                        {[...drivers].sort((a, b) => b.totalTime - a.totalTime).map((driver, index) => (
+                          <div key={driver.id} className="driver-card" style={{
+                            borderLeft: index === 0 ? '4px solid var(--race-yellow)' : '4px solid var(--waiting-driver)'
+                          }}>
+                            <div style={{
+                              fontSize: '1.5rem',
+                              fontWeight: '700',
+                              color: 'var(--text-secondary)',
+                              marginRight: '1rem'
+                            }}>
+                              #{index + 1}
+                            </div>
+                            <div className="driver-info" style={{flex: 1}}>
+                              <div className="driver-name">{driver.name}</div>
+                              <div className="driver-status">
+                                <span>Stints: {driver.stints}</span>
+                                <span>Total Time: {formatTime(driver.totalTime)}</span>
+                                <span>Avg Stint: {driver.stints > 0 ? formatTime(Math.floor(driver.totalTime / driver.stints)) : '—'}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="section">
+                      <div className="section-title">Pit Stop Log</div>
+                      {pitStops.length === 0 ? (
+                        <div style={{textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem'}}>
+                          No pit stops recorded
+                        </div>
+                      ) : (
+                        pitStops.map((stop, index) => (
+                          <div key={index} className="history-item">
+                            <div>
+                              <div style={{fontWeight: '700', fontSize: '1.125rem'}}>{stop.driver}</div>
+                              <div style={{fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '0.25rem'}}>
+                                Stint: {formatTime(stop.stintDuration)} | Pit: {formatTime(stop.pitDuration || 0)}
+                                {stop.emergency && <span style={{color: 'var(--race-red)', marginLeft: '0.5rem', fontWeight: '700'}}>⚠ EMERGENCY</span>}
+                              </div>
+                            </div>
+                            <div style={{textAlign: 'right'}}>
+                              <div className="history-time">{formatTime(stop.time)}</div>
+                              <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem'}}>{stop.timestamp}</div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    <div className="section">
+                      <button className="btn btn-danger" onClick={resetRace} style={{width: '100%', padding: '1rem'}}>
+                        🔄 Start New Race
+                      </button>
+                      <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center', marginTop: '0.75rem'}}>
+                        💡 Tip: Screenshot this page to save your race results
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {activeTab === 'settings' && !raceFinished && (
+                  <div className="section">
+                    <div className="section-title">Race Controls</div>
+
+                    <div style={{
+                      background: 'var(--surface-elevated)',
+                      padding: '1.5rem',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border)',
+                      marginBottom: '1.5rem'
+                    }}>
+                      <div style={{fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px'}}>
+                        Race Timer
+                      </div>
+                      <button className="btn btn-secondary" onClick={togglePause} style={{width: '100%', padding: '1rem', marginBottom: '0.75rem'}}>
+                        {racePaused ? '▶ Resume Race' : '⏸ Pause Race'}
+                      </button>
+                      <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center'}}>
+                        {racePaused ? 'Race is currently paused' : 'Race timer is running'}
+                      </div>
+                    </div>
+
+                    <div style={{
+                      background: 'linear-gradient(135deg, rgba(255, 204, 0, 0.15) 0%, var(--surface-elevated) 100%)',
+                      padding: '1.5rem',
+                      borderRadius: '8px',
+                      border: '2px solid var(--race-yellow)',
+                      marginBottom: '1.5rem'
+                    }}>
+                      <div style={{fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px'}}>
+                        Finish Race
+                      </div>
+                      <button className="btn btn-primary" onClick={finishRace} style={{width: '100%', padding: '1rem', background: 'var(--race-yellow)', color: 'var(--dark-bg)'}}>
+                        🏁 Chequered Flag
+                      </button>
+                      <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center', marginTop: '0.5rem'}}>
+                        End race and show final results
+                      </div>
+                    </div>
+
+                    <div style={{
+                      background: 'var(--surface-elevated)',
+                      padding: '1.5rem',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border)',
+                      marginBottom: '1.5rem'
+                    }}>
+                      <div style={{fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px'}}>
+                        Danger Zone
+                      </div>
+                      <button className="btn btn-danger" onClick={resetRace} style={{width: '100%', padding: '1rem'}}>
+                        🔄 Reset Race
+                      </button>
+                      <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center', marginTop: '0.5rem'}}>
+                        This will clear all race data and return to setup
+                      </div>
+                    </div>
+
+                    <div style={{
+                      background: 'var(--surface-elevated)',
+                      padding: '1.5rem',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border)'
+                    }}>
+                      <div style={{fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px'}}>
+                        Race Configuration
+                      </div>
+                      <div style={{display: 'grid', gap: '0.75rem'}}>
+                        {teamName && (
+                          <div style={{display: 'flex', justifyContent: 'space-between', padding: '0.75rem', background: 'var(--dark-bg)', borderRadius: '6px'}}>
+                            <span style={{color: 'var(--text-secondary)'}}>Team:</span>
+                            <span style={{fontWeight: '700'}}>{teamName}</span>
+                          </div>
+                        )}
+                        <div style={{display: 'flex', justifyContent: 'space-between', padding: '0.75rem', background: 'var(--dark-bg)', borderRadius: '6px'}}>
+                          <span style={{color: 'var(--text-secondary)'}}>Track:</span>
+                          <span style={{fontWeight: '700'}}>{trackName}</span>
+                        </div>
+                        <div style={{display: 'flex', justifyContent: 'space-between', padding: '0.75rem', background: 'var(--dark-bg)', borderRadius: '6px'}}>
+                          <span style={{color: 'var(--text-secondary)'}}>Kart Range:</span>
+                          <span style={{fontWeight: '700'}}>{kartRange} minutes</span>
+                        </div>
+                        <div style={{display: 'flex', justifyContent: 'space-between', padding: '0.75rem', background: 'var(--dark-bg)', borderRadius: '6px'}}>
+                          <span style={{color: 'var(--text-secondary)'}}>Min Pit Time:</span>
+                          <span style={{fontWeight: '700'}}>{minPitTime} seconds</span>
+                        </div>
+                        <div style={{display: 'flex', justifyContent: 'space-between', padding: '0.75rem', background: 'var(--dark-bg)', borderRadius: '6px'}}>
+                          <span style={{color: 'var(--text-secondary)'}}>Pit Exit Time:</span>
+                          <span style={{fontWeight: '700'}}>{pitExitTime} seconds</span>
+                        </div>
+                        <div style={{display: 'flex', justifyContent: 'space-between', padding: '0.75rem', background: 'var(--dark-bg)', borderRadius: '6px'}}>
+                          <span style={{color: 'var(--text-secondary)'}}>Race Duration:</span>
+                          <span style={{fontWeight: '700'}}>{raceDuration} hours</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
