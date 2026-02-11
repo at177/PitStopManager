@@ -455,6 +455,15 @@
     .tab:hover {
       color: white;
     }
+
+    @keyframes pulse {
+      0%, 100% {
+        transform: translate(-50%, -50%) scale(1);
+      }
+      50% {
+        transform: translate(-50%, -50%) scale(1.05);
+      }
+    }
   </style>
 </head>
 <body>
@@ -464,11 +473,13 @@
     const { useState, useEffect, useRef } = React;
 
     function App() {
-      const [activeTab, setActiveTab] = useState('setup');
+      const [activeTab, setActiveTab] = useState('race');
       const [raceStarted, setRaceStarted] = useState(false);
       const [raceFinished, setRaceFinished] = useState(false);
       const [racePaused, setRacePaused] = useState(false);
       const [elapsedTime, setElapsedTime] = useState(0);
+      const [raceStartTimestamp, setRaceStartTimestamp] = useState(0);
+      const [pausedAtTime, setPausedAtTime] = useState(0);
       
       // Race configuration
       const [teamName, setTeamName] = useState('');
@@ -489,19 +500,36 @@
       const [inPitStop, setInPitStop] = useState(false);
       const [pitStopStartTime, setPitStopStartTime] = useState(0);
       const [pitStopElapsedTime, setPitStopElapsedTime] = useState(0);
+      const [sameDriverContinues, setSameDriverContinues] = useState(false);
+      const [showExitCountdown, setShowExitCountdown] = useState(false);
+      const [exitCountdownStart, setExitCountdownStart] = useState(0);
       
       // Pit stop history
       const [pitStops, setPitStops] = useState([]);
       
       const timerRef = useRef(null);
 
+      // Hide exit countdown when time expires
+      useEffect(() => {
+        if (showExitCountdown && pitStopStartTime > 0) {
+          const timeSincePitEntry = elapsedTime - pitStopStartTime;
+          const timeRemaining = minPitTime - timeSincePitEntry;
+          if (timeRemaining <= 0) {
+            setShowExitCountdown(false);
+          }
+        }
+      }, [showExitCountdown, pitStopStartTime, elapsedTime, minPitTime]);
+
       // Auto-save race state to localStorage
       useEffect(() => {
         if (raceStarted) {
           const raceState = {
             raceStarted,
+            raceFinished,
             racePaused,
             elapsedTime,
+            raceStartTimestamp,
+            pausedAtTime,
             teamName,
             trackName,
             kartRange,
@@ -515,12 +543,14 @@
             inPitStop,
             pitStopStartTime,
             pitStopElapsedTime,
+            sameDriverContinues,
             pitStops,
             lastSaved: new Date().toISOString()
           };
           localStorage.setItem('kartraceState', JSON.stringify(raceState));
         }
-      }, [raceStarted, racePaused, elapsedTime, drivers, currentDriverIndex, stintStartTime, 
+      }, [raceStarted, raceFinished, racePaused, elapsedTime, raceStartTimestamp, pausedAtTime, 
+          drivers, currentDriverIndex, stintStartTime, 
           nextDriverReady, inPitStop, pitStopStartTime, pitStopElapsedTime, pitStops, teamName, trackName, kartRange, 
           minPitTime, pitExitTime, raceDuration]);
 
@@ -543,8 +573,22 @@
             
             if (restore) {
               setRaceStarted(state.raceStarted);
+              setRaceFinished(state.raceFinished || false);
+              
+              // Recalculate elapsed time from timestamp if race was running
+              if (!state.racePaused && state.raceStartTimestamp) {
+                const now = Date.now();
+                const actualElapsed = Math.floor((now - state.raceStartTimestamp) / 1000);
+                setElapsedTime(actualElapsed);
+                setRaceStartTimestamp(state.raceStartTimestamp);
+              } else {
+                // Race was paused, use saved elapsed time
+                setElapsedTime(state.elapsedTime);
+                setRaceStartTimestamp(state.raceStartTimestamp || Date.now());
+              }
+              
               setRacePaused(state.racePaused);
-              setElapsedTime(state.elapsedTime);
+              setPausedAtTime(state.pausedAtTime || state.elapsedTime);
               setTeamName(state.teamName || '');
               setTrackName(state.trackName);
               setKartRange(state.kartRange);
@@ -558,8 +602,9 @@
               setInPitStop(state.inPitStop || false);
               setPitStopStartTime(state.pitStopStartTime || 0);
               setPitStopElapsedTime(state.pitStopElapsedTime || 0);
+              setSameDriverContinues(state.sameDriverContinues || false);
               setPitStops(state.pitStops);
-              setActiveTab('race');
+              setActiveTab(state.raceFinished ? 'results' : 'race');
             } else {
               localStorage.removeItem('kartraceState');
             }
@@ -574,7 +619,10 @@
         if (raceStarted) {
           timerRef.current = setInterval(() => {
             if (!racePaused) {
-              setElapsedTime(prev => prev + 1);
+              // Calculate actual elapsed time from start timestamp
+              const now = Date.now();
+              const actualElapsed = Math.floor((now - raceStartTimestamp) / 1000);
+              setElapsedTime(actualElapsed);
             }
             if (inPitStop) {
               setPitStopElapsedTime(prev => prev + 1);
@@ -590,7 +638,7 @@
             clearInterval(timerRef.current);
           }
         };
-      }, [raceStarted, racePaused, inPitStop]);
+      }, [raceStarted, racePaused, inPitStop, raceStartTimestamp]);
 
       const formatTime = (seconds) => {
         const hours = Math.floor(seconds / 3600);
@@ -620,6 +668,13 @@
           const newDrivers = [...drivers];
           [newDrivers[index - 1], newDrivers[index]] = [newDrivers[index], newDrivers[index - 1]];
           setDrivers(newDrivers);
+          
+          // Adjust current driver index if affected
+          if (currentDriverIndex === index) {
+            setCurrentDriverIndex(index - 1);
+          } else if (currentDriverIndex === index - 1) {
+            setCurrentDriverIndex(index);
+          }
         }
       };
 
@@ -628,7 +683,55 @@
           const newDrivers = [...drivers];
           [newDrivers[index], newDrivers[index + 1]] = [newDrivers[index + 1], newDrivers[index]];
           setDrivers(newDrivers);
+          
+          // Adjust current driver index if affected
+          if (currentDriverIndex === index) {
+            setCurrentDriverIndex(index + 1);
+          } else if (currentDriverIndex === index + 1) {
+            setCurrentDriverIndex(index);
+          }
         }
+      };
+
+      const calculateNextStintTimes = () => {
+        if (!raceStarted || drivers.length === 0) return [];
+        
+        const raceEndTime = raceDuration * 3600; // Race end in seconds
+        let simulatedTime = elapsedTime;
+        let simulatedDriverIndex = currentDriverIndex;
+        const stintTimes = drivers.map(() => []);
+        
+        // If currently in pit, next driver starts after pit completes
+        if (inPitStop) {
+          simulatedTime = elapsedTime + (minPitTime - pitStopElapsedTime) + pitExitTime;
+          simulatedDriverIndex = window.emergencyTargetDriver || ((currentDriverIndex + 1) % drivers.length);
+        } else {
+          // Current driver continues until next pit
+          const currentStintRemaining = (stintStartTime + (kartRange * 60)) - elapsedTime;
+          simulatedTime += Math.max(0, currentStintRemaining) + minPitTime + pitExitTime;
+          simulatedDriverIndex = (currentDriverIndex + 1) % drivers.length;
+        }
+        
+        // Calculate stints until race end
+        while (simulatedTime < raceEndTime) {
+          const stintDuration = kartRange * 60;
+          const stintEndTime = simulatedTime + stintDuration;
+          
+          // Don't add stint if it would start after race ends
+          if (simulatedTime >= raceEndTime) break;
+          
+          stintTimes[simulatedDriverIndex].push({
+            startTime: simulatedTime,
+            endTime: Math.min(stintEndTime, raceEndTime) // Cap at race end
+          });
+          
+          simulatedTime += stintDuration + minPitTime + pitExitTime;
+          
+          // Move to next driver in rotation
+          simulatedDriverIndex = (simulatedDriverIndex + 1) % drivers.length;
+        }
+        
+        return stintTimes;
       };
 
       const startRace = () => {
@@ -640,12 +743,22 @@
           alert('Please enter a track name!');
           return;
         }
+        const now = Date.now();
         setRaceStarted(true);
+        setRaceStartTimestamp(now);
         setStintStartTime(0);
         setActiveTab('race');
       };
 
       const togglePause = () => {
+        if (!racePaused) {
+          // Pausing - record current elapsed time
+          setPausedAtTime(elapsedTime);
+        } else {
+          // Resuming - adjust start timestamp to account for pause duration
+          const pauseDuration = elapsedTime - pausedAtTime;
+          setRaceStartTimestamp(Date.now() - (elapsedTime * 1000));
+        }
         setRacePaused(!racePaused);
       };
 
@@ -655,14 +768,17 @@
           setRaceFinished(false);
           setRacePaused(false);
           setElapsedTime(0);
+          setRaceStartTimestamp(0);
+          setPausedAtTime(0);
           setCurrentDriverIndex(0);
           setStintStartTime(0);
           setPitStops([]);
           setDrivers(drivers.map(d => ({ ...d, stints: 0, totalTime: 0 })));
-          setActiveTab('setup');
+          setActiveTab('race');
           setInPitStop(false);
           setPitStopStartTime(0);
           setPitStopElapsedTime(0);
+          setSameDriverContinues(false);
           // Clear saved state
           localStorage.removeItem('kartraceState');
         }
@@ -695,6 +811,16 @@
         // Race timer continues running
       };
 
+      const cancelPitStop = () => {
+        if (confirm('Cancel pit stop and return to previous state?')) {
+          // Return to pre-pit stop state
+          setInPitStop(false);
+          setPitStopElapsedTime(0);
+          setSameDriverContinues(false);
+          // Don't change driver index or stint start time - keep racing as before
+        }
+      };
+
       const completePitStop = () => {
         const currentStintTime = pitStopStartTime - stintStartTime;
         const currentDriver = drivers[currentDriverIndex];
@@ -702,13 +828,14 @@
         // Add exit travel time to get total time in pits
         const totalPitTime = actualPitTime + pitExitTime;
         
-        // Record pit stop
+        // Record pit stop (mark as double stint if same driver continues)
         setPitStops([{
           time: pitStopStartTime,
           driver: currentDriver.name,
           stintDuration: currentStintTime,
           pitDuration: totalPitTime,
-          timestamp: new Date().toLocaleTimeString()
+          timestamp: new Date().toLocaleTimeString(),
+          doubleStint: sameDriverContinues
         }, ...pitStops]);
 
         // Update driver stats
@@ -720,31 +847,40 @@
         };
         setDrivers(updatedDrivers);
 
-        // Move to next driver - new stint starts now (plus exit time to cross the line)
-        const nextIndex = (currentDriverIndex + 1) % drivers.length;
-        setCurrentDriverIndex(nextIndex);
-        setStintStartTime(elapsedTime + pitExitTime);
+        // Move to next driver in rotation (or stay with same driver)
+        const nextIndex = sameDriverContinues ? currentDriverIndex : (currentDriverIndex + 1) % drivers.length;
         
-        // Exit pit stop mode and reset ready state
+        setCurrentDriverIndex(nextIndex);
+        // Stint starts NOW when driver is released (not after exit time)
+        setStintStartTime(elapsedTime);
+        
+        // Start exit countdown overlay
+        setShowExitCountdown(true);
+        setExitCountdownStart(elapsedTime);
+        
+        // Exit pit stop mode and reset states
         setInPitStop(false);
         setPitStopElapsedTime(0);
         setNextDriverReady(false);
-      };
-
-      const cancelPitStop = () => {
-        setInPitStop(false);
-        setPitStopElapsedTime(0);
+        setSameDriverContinues(false);
       };
 
       const emergencyDriverChange = (newDriverIndex) => {
-        if (confirm('Execute emergency driver change?')) {
-          // Enter pit bay for emergency change
+        const isDoublStint = newDriverIndex === currentDriverIndex;
+        const driverName = drivers[newDriverIndex]?.name;
+        const confirmMessage = isDoublStint 
+          ? `${driverName} will do a double stint. Continue?`
+          : `Change to ${driverName}?`;
+        
+        if (confirm(confirmMessage)) {
+          // Enter pit bay for driver change
           setInPitStop(true);
           setPitStopStartTime(elapsedTime);
           setPitStopElapsedTime(0); // Reset pit timer
           // Race timer continues running
           // Store the target driver index for after pit completes
           window.emergencyTargetDriver = newDriverIndex;
+          window.isDoubleStint = isDoublStint;
         }
       };
 
@@ -754,6 +890,7 @@
         const actualPitTime = elapsedTime - pitStopStartTime;
         // Add exit travel time to get total time in pits
         const totalPitTime = actualPitTime + pitExitTime;
+        const isDoubleStint = window.isDoubleStint || false;
         
         setPitStops([{
           time: pitStopStartTime,
@@ -761,7 +898,8 @@
           stintDuration: currentStintTime,
           pitDuration: totalPitTime,
           timestamp: new Date().toLocaleTimeString(),
-          emergency: true
+          emergency: !isDoubleStint,
+          doubleStint: isDoubleStint
         }, ...pitStops]);
 
         const updatedDrivers = [...drivers];
@@ -773,12 +911,19 @@
         setDrivers(updatedDrivers);
 
         setCurrentDriverIndex(window.emergencyTargetDriver);
-        setStintStartTime(elapsedTime + pitExitTime);
+        // Stint starts NOW when driver is released
+        setStintStartTime(elapsedTime);
+        
+        // Start exit countdown overlay
+        setShowExitCountdown(true);
+        setExitCountdownStart(elapsedTime);
         
         setInPitStop(false);
         setPitStopElapsedTime(0);
         setNextDriverReady(false);
+        setSameDriverContinues(false);
         delete window.emergencyTargetDriver;
+        delete window.isDoubleStint;
       };
 
       const currentStintTime = elapsedTime - stintStartTime;
@@ -797,6 +942,59 @@
             <div className="app-title">Pit Stop Manager</div>
             {teamName && <div className="app-subtitle">{teamName}</div>}
           </div>
+
+          {/* Floating Exit Countdown Overlay */}
+          {showExitCountdown && minPitTime > 0 && (() => {
+            // Time remaining = Min Pit Time - (time since crossing pit entry line)
+            const timeSincePitEntry = elapsedTime - pitStopStartTime;
+            const timeRemaining = Math.max(0, minPitTime - timeSincePitEntry);
+            return (
+              <div style={{
+                position: 'fixed',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                zIndex: 9999,
+                background: timeRemaining > 0 ? 'linear-gradient(135deg, #ff0033 0%, #cc0029 100%)' : 'linear-gradient(135deg, #00ff66 0%, #00cc52 100%)',
+                padding: '3rem 4rem',
+                borderRadius: '24px',
+                boxShadow: '0 20px 60px rgba(0, 0, 0, 0.8)',
+                border: '4px solid ' + (timeRemaining > 0 ? 'var(--race-red)' : 'var(--race-green)'),
+                textAlign: 'center',
+                animation: timeRemaining <= 3 && timeRemaining > 0 ? 'pulse 0.5s infinite' : 'none'
+              }}>
+                <div style={{
+                  fontSize: '1rem',
+                  fontWeight: '700',
+                  color: 'white',
+                  marginBottom: '1rem',
+                  textTransform: 'uppercase',
+                  letterSpacing: '3px'
+                }}>
+                  {timeRemaining > 0 ? 'PIT EXIT COUNTDOWN' : 'CLEAR TO CROSS'}
+                </div>
+                <div style={{
+                  fontFamily: 'Orbitron, monospace',
+                  fontSize: '8rem',
+                  fontWeight: '900',
+                  color: 'white',
+                  lineHeight: '1',
+                  textShadow: '0 4px 20px rgba(0, 0, 0, 0.5)'
+                }}>
+                  {timeRemaining}
+                </div>
+                <div style={{
+                  fontSize: '0.875rem',
+                  color: 'rgba(255, 255, 255, 0.9)',
+                  marginTop: '1rem',
+                  textTransform: 'uppercase',
+                  letterSpacing: '2px'
+                }}>
+                  {timeRemaining > 0 ? 'DO NOT CROSS PIT EXIT LINE' : 'SAFE TO CROSS'}
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="container">
             {!raceStarted ? (
@@ -843,10 +1041,20 @@
                     type="number" 
                     className="form-input" 
                     value={minPitTime}
-                    onChange={(e) => setMinPitTime(Number(e.target.value))}
-                    min="30"
+                    onChange={(e) => {
+                      const newMinPitTime = Number(e.target.value);
+                      setMinPitTime(newMinPitTime);
+                      // If min pit time is 0, also set pit exit time to 0
+                      if (newMinPitTime === 0) {
+                        setPitExitTime(0);
+                      }
+                    }}
+                    min="0"
                     max="300"
                   />
+                  <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem'}}>
+                    Set to 0 if no minimum pit time
+                  </div>
                 </div>
 
                 <div className="form-group">
@@ -856,11 +1064,12 @@
                     className="form-input" 
                     value={pitExitTime}
                     onChange={(e) => setPitExitTime(Number(e.target.value))}
-                    min="5"
+                    min="0"
                     max="60"
+                    disabled={minPitTime === 0}
                   />
                   <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem'}}>
-                    Time from pit bay to exit line
+                    {minPitTime === 0 ? 'Disabled when no minimum pit time' : 'Time from pit bay to exit line'}
                   </div>
                 </div>
 
@@ -909,7 +1118,7 @@
                   </div>
                 </div>
 
-                <button className="btn btn-primary" style={{width: '100%', marginTop: '1rem'}} onClick={startRace}>
+                <button className="btn btn-primary" style={{width: '100%', marginTop: '1rem', padding: '1rem'}} onClick={startRace}>
                   Start Race
                 </button>
               </div>
@@ -993,28 +1202,30 @@
                           </div>
                         </div>
 
-                        <div className="stats-grid" style={{marginBottom: '1.5rem'}}>
-                          <div className="stat-card">
-                            <div className="stat-label">Min Pit Time</div>
-                            <div className="stat-value" style={{fontSize: '1.25rem'}}>{minPitTime}s</div>
+                        {minPitTime > 0 && (
+                          <div className="stats-grid" style={{marginBottom: '1.5rem'}}>
+                            <div className="stat-card">
+                              <div className="stat-label">Min Pit Time</div>
+                              <div className="stat-value" style={{fontSize: '1.25rem'}}>{minPitTime}s</div>
+                            </div>
+                            <div className="stat-card">
+                              <div className="stat-label">Exit Travel Time</div>
+                              <div className="stat-value" style={{fontSize: '1.25rem'}}>{pitExitTime}s</div>
+                            </div>
+                            <div className="stat-card" style={{gridColumn: 'span 2'}}>
+                              <div className="stat-label">Leave Pit Bay At</div>
+                              <div className="stat-value" style={{fontSize: '1.25rem'}}>{minPitTime - pitExitTime}s</div>
+                            </div>
                           </div>
-                          <div className="stat-card">
-                            <div className="stat-label">Exit Travel Time</div>
-                            <div className="stat-value" style={{fontSize: '1.25rem'}}>{pitExitTime}s</div>
-                          </div>
-                          <div className="stat-card" style={{gridColumn: 'span 2'}}>
-                            <div className="stat-label">Leave Pit Bay At</div>
-                            <div className="stat-value" style={{fontSize: '1.25rem'}}>{minPitTime - pitExitTime}s</div>
-                          </div>
-                        </div>
+                        )}
 
-                        {!canExit && (
+                        {!canExit && minPitTime > 0 && (
                           <div className="alert alert-warning" style={{marginBottom: '1.5rem'}}>
                             <strong>WAIT!</strong> You can leave the pit bay in {timeUntilCanExit} seconds
                           </div>
                         )}
 
-                        {canExit && (
+                        {canExit && minPitTime > 0 && (
                           <div className="alert" style={{
                             borderLeftColor: 'var(--race-green)',
                             background: 'linear-gradient(90deg, rgba(0, 255, 102, 0.15) 0%, var(--surface-elevated) 100%)',
@@ -1024,6 +1235,46 @@
                           </div>
                         )}
 
+                        <div style={{
+                          padding: '1rem',
+                          background: 'var(--surface-elevated)',
+                          borderRadius: '8px',
+                          border: '1px solid var(--border)',
+                          marginBottom: '1.5rem'
+                        }}>
+                          <label style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.75rem',
+                            cursor: 'pointer',
+                            userSelect: 'none'
+                          }}>
+                            <input 
+                              type="checkbox" 
+                              checked={sameDriverContinues}
+                              onChange={(e) => setSameDriverContinues(e.target.checked)}
+                              style={{
+                                width: '20px',
+                                height: '20px',
+                                cursor: 'pointer',
+                                accentColor: 'var(--race-yellow)'
+                              }}
+                            />
+                            <span style={{fontSize: '1rem', fontWeight: '600'}}>
+                              Same driver doing next stint
+                            </span>
+                          </label>
+                          {sameDriverContinues && (
+                            <div style={{
+                              marginTop: '0.5rem',
+                              fontSize: '0.875rem',
+                              color: 'var(--race-yellow)'
+                            }}>
+                              {drivers[currentDriverIndex]?.name} will continue for another stint
+                            </div>
+                          )}
+                        </div>
+
                         <div style={{display: 'flex', gap: '0.75rem'}}>
                           <button 
                             className="btn btn-primary" 
@@ -1031,13 +1282,14 @@
                             onClick={isEmergency ? completeEmergencyPit : completePitStop}
                             disabled={!canExit}
                           >
-                            {canExit ? '✓ Complete Pit Stop' : `Wait ${timeUntilCanExit}s`}
+                            {canExit ? 'Driver Released' : `Release in ${timeUntilCanExit}s`}
                           </button>
                           <button 
-                            className="btn btn-secondary" 
+                            className="btn btn-danger" 
+                            style={{padding: '1rem'}}
                             onClick={cancelPitStop}
                           >
-                            Cancel
+                            Abort
                           </button>
                         </div>
 
@@ -1045,13 +1297,13 @@
                           <div style={{
                             marginTop: '1rem',
                             padding: '1rem',
-                            background: 'rgba(255, 0, 51, 0.1)',
+                            background: window.isDoubleStint ? 'rgba(255, 204, 0, 0.1)' : 'rgba(255, 0, 51, 0.1)',
                             borderRadius: '6px',
                             textAlign: 'center',
-                            color: 'var(--race-red)',
+                            color: window.isDoubleStint ? 'var(--race-yellow)' : 'var(--race-red)',
                             fontWeight: '700'
                           }}>
-                            ⚠ EMERGENCY DRIVER CHANGE ⚠<br/>
+                            {window.isDoubleStint ? '↻ DOUBLE STINT ↻' : '⚠ EMERGENCY DRIVER CHANGE ⚠'}<br/>
                             Next: {drivers[window.emergencyTargetDriver]?.name}
                           </div>
                         )}
@@ -1111,20 +1363,14 @@
                         <button 
                           className="btn btn-primary" 
                           style={{width: '100%', marginTop: '1rem', padding: '1rem'}}
-                          onClick={() => setNextDriverReady(true)}
+                          onClick={() => {
+                            if (confirm(`Confirm ${drivers[nextDriverIndex]?.name} is ready to enter the kart?`)) {
+                              setNextDriverReady(true);
+                            }
+                          }}
                         >
-                          ✓ {drivers[nextDriverIndex]?.name} is Ready
+                          Click when {drivers[nextDriverIndex]?.name} is ready
                         </button>
-                      )}
-
-                      {nextDriverReady && (
-                        <div className="alert" style={{
-                          borderLeftColor: 'var(--race-green)',
-                          background: 'linear-gradient(90deg, rgba(0, 255, 102, 0.15) 0%, var(--surface-elevated) 100%)',
-                          marginTop: '1rem'
-                        }}>
-                          <strong>✓ Driver Ready</strong> - {drivers[nextDriverIndex]?.name} can now enter the kart
-                        </div>
                       )}
 
                       {nextDriverReady && (
@@ -1137,30 +1383,8 @@
                           }}
                           onClick={executePitStop}
                         >
-                          Execute Pit Stop
+                          Click when driver crosses pit entry line
                         </button>
-                      )}
-
-                      {drivers.length > 2 && (
-                        <div style={{marginTop: '1rem'}}>
-                          <div style={{fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '0.5rem'}}>
-                            Emergency Driver Change:
-                          </div>
-                          <div style={{display: 'flex', gap: '0.5rem', flexWrap: 'wrap'}}>
-                            {drivers.map((driver, index) => {
-                              if (index === currentDriverIndex) return null;
-                              return (
-                                <button 
-                                  key={driver.id}
-                                  className="btn btn-secondary btn-small"
-                                  onClick={() => emergencyDriverChange(index)}
-                                >
-                                  {driver.name}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
                       )}
                     </div>
                     </>
@@ -1171,22 +1395,77 @@
                 {activeTab === 'drivers' && !raceFinished && (
                   <div className="section">
                     <div className="section-title">Driver Statistics</div>
-                    {drivers.map((driver, index) => (
-                      <div 
-                        key={driver.id} 
-                        className={`driver-card ${index === currentDriverIndex ? 'active' : index === nextDriverIndex ? 'next-up' : ''}`}
-                      >
-                        <div className="driver-info">
-                          <div className="driver-name">{driver.name}</div>
-                          <div className="driver-status">
-                            {index === currentDriverIndex && <span className="status-badge active">On Track</span>}
-                            {index === nextDriverIndex && <span className="status-badge next">Next Up</span>}
-                            <span>Stints: {driver.stints}</span>
-                            <span>Total Time: {formatTime(driver.totalTime)}</span>
+                    
+                    <div style={{
+                      padding: '1rem',
+                      background: 'var(--surface-elevated)',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border)',
+                      marginBottom: '1.5rem',
+                      fontSize: '0.875rem',
+                      color: 'var(--text-secondary)'
+                    }}>
+                      💡 Use ↑↓ buttons to change driver order. Predicted stints shown below each driver.
+                    </div>
+
+                    {(() => {
+                      const predictedTimes = calculateNextStintTimes();
+                      return drivers.map((driver, index) => {
+                        const nextStints = predictedTimes[index] || [];
+                        
+                        return (
+                          <div 
+                            key={driver.id} 
+                            className={`driver-card ${index === currentDriverIndex ? 'active' : index === (currentDriverIndex + 1) % drivers.length ? 'next-up' : ''}`}
+                            style={{marginBottom: '1rem'}}
+                          >
+                            <div className="driver-info" style={{flex: 1}}>
+                              <div style={{marginBottom: '0.5rem'}}>
+                                <div className="driver-name">
+                                  {index + 1}. {driver.name}
+                                </div>
+                              </div>
+                              <div className="driver-status">
+                                {index === currentDriverIndex && <span className="status-badge active">On Track</span>}
+                                {index === (currentDriverIndex + 1) % drivers.length && <span className="status-badge next">Next Up</span>}
+                                <span>Stints: {driver.stints}</span>
+                                <span>Total: {formatTime(driver.totalTime)}</span>
+                              </div>
+                              {raceStarted && nextStints.length > 0 && (
+                                <div style={{
+                                  marginTop: '0.75rem',
+                                  padding: '0.75rem',
+                                  background: 'var(--dark-bg)',
+                                  borderRadius: '4px',
+                                  fontSize: '0.75rem'
+                                }}>
+                                  <div style={{color: 'var(--race-green)', fontWeight: '700', marginBottom: '0.5rem'}}>
+                                    Predicted Stints:
+                                  </div>
+                                  {nextStints.map((stint, idx) => {
+                                    // Stint number = completed stints + current stint (if on track) + predicted stint number
+                                    const stintNumber = driver.stints + (index === currentDriverIndex ? 1 : 0) + idx + 1;
+                                    return (
+                                      <div key={idx} style={{color: 'var(--text-secondary)', marginBottom: '0.25rem'}}>
+                                        #{stintNumber}: {new Date(raceStartTimestamp + stint.startTime * 1000).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})} - {new Date(raceStartTimestamp + stint.endTime * 1000).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                            <div className="driver-actions">
+                              {index > 0 && index !== currentDriverIndex && (
+                                <button className="btn btn-secondary btn-small" onClick={() => moveDriverUp(index)}>↑</button>
+                              )}
+                              {index < drivers.length - 1 && index !== currentDriverIndex && (
+                                <button className="btn btn-secondary btn-small" onClick={() => moveDriverDown(index)}>↓</button>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                    ))}
+                        );
+                      });
+                    })()}
                   </div>
                 )}
 
@@ -1407,6 +1686,7 @@
                               <div style={{fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '0.25rem'}}>
                                 Stint: {formatTime(stop.stintDuration)} | Pit: {formatTime(stop.pitDuration || 0)}
                                 {stop.emergency && <span style={{color: 'var(--race-red)', marginLeft: '0.5rem', fontWeight: '700'}}>⚠ EMERGENCY</span>}
+                                {stop.doubleStint && <span style={{color: 'var(--race-yellow)', marginLeft: '0.5rem', fontWeight: '700'}}>↻ DOUBLE STINT</span>}
                               </div>
                             </div>
                             <div style={{textAlign: 'right'}}>
@@ -1430,102 +1710,167 @@
                 )}
 
                 {activeTab === 'settings' && !raceFinished && (
-                  <div className="section">
-                    <div className="section-title">Race Controls</div>
+                  <>
+                    <div className="section">
+                      <div className="section-title">Race Controls</div>
 
-                    <div style={{
-                      background: 'var(--surface-elevated)',
-                      padding: '1.5rem',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border)',
-                      marginBottom: '1.5rem'
-                    }}>
-                      <div style={{fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px'}}>
-                        Race Timer
+                      <div style={{
+                        background: 'var(--surface-elevated)',
+                        padding: '1.5rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border)',
+                        marginBottom: '1.5rem'
+                      }}>
+                        <div style={{fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px'}}>
+                          Race Timer
+                        </div>
+                        <button className="btn btn-secondary" onClick={togglePause} style={{width: '100%', padding: '1rem', marginBottom: '0.75rem'}}>
+                          {racePaused ? '▶ Resume Race' : '⏸ Pause Race'}
+                        </button>
+                        <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center'}}>
+                          {racePaused ? 'Race is currently paused' : 'Race timer is running'}
+                        </div>
                       </div>
-                      <button className="btn btn-secondary" onClick={togglePause} style={{width: '100%', padding: '1rem', marginBottom: '0.75rem'}}>
-                        {racePaused ? '▶ Resume Race' : '⏸ Pause Race'}
-                      </button>
-                      <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center'}}>
-                        {racePaused ? 'Race is currently paused' : 'Race timer is running'}
+
+                      <div style={{
+                        background: 'linear-gradient(135deg, rgba(255, 204, 0, 0.15) 0%, var(--surface-elevated) 100%)',
+                        padding: '1.5rem',
+                        borderRadius: '8px',
+                        border: '2px solid var(--race-yellow)',
+                        marginBottom: '1.5rem'
+                      }}>
+                        <div style={{fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px'}}>
+                          Finish Race
+                        </div>
+                        <button className="btn btn-primary" onClick={finishRace} style={{width: '100%', padding: '1rem', background: 'var(--race-yellow)', color: 'var(--dark-bg)'}}>
+                          🏁 Chequered Flag
+                        </button>
+                        <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center', marginTop: '0.5rem'}}>
+                          End race and show final results
+                        </div>
+                      </div>
+
+                      <div style={{
+                        background: 'var(--surface-elevated)',
+                        padding: '1.5rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border)'
+                      }}>
+                        <div style={{fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px'}}>
+                          Danger Zone
+                        </div>
+                        <button className="btn btn-danger" onClick={resetRace} style={{width: '100%', padding: '1rem'}}>
+                          🔄 Reset Race
+                        </button>
+                        <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center', marginTop: '0.5rem'}}>
+                          This will clear all race data and return to setup
+                        </div>
                       </div>
                     </div>
 
-                    <div style={{
-                      background: 'linear-gradient(135deg, rgba(255, 204, 0, 0.15) 0%, var(--surface-elevated) 100%)',
-                      padding: '1.5rem',
-                      borderRadius: '8px',
-                      border: '2px solid var(--race-yellow)',
-                      marginBottom: '1.5rem'
-                    }}>
-                      <div style={{fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px'}}>
-                        Finish Race
-                      </div>
-                      <button className="btn btn-primary" onClick={finishRace} style={{width: '100%', padding: '1rem', background: 'var(--race-yellow)', color: 'var(--dark-bg)'}}>
-                        🏁 Chequered Flag
-                      </button>
-                      <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center', marginTop: '0.5rem'}}>
-                        End race and show final results
-                      </div>
-                    </div>
+                    {raceStarted && (
+                      <div className="section">
+                        <div className="section-title">Race Parameters</div>
+                        
+                        <div style={{
+                          padding: '1rem',
+                          background: 'var(--surface-elevated)',
+                          borderRadius: '8px',
+                          border: '1px solid var(--border)',
+                          marginBottom: '1.5rem',
+                          fontSize: '0.875rem',
+                          color: 'var(--text-secondary)'
+                        }}>
+                          💡 Changes take effect immediately
+                        </div>
 
-                    <div style={{
-                      background: 'var(--surface-elevated)',
-                      padding: '1.5rem',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border)',
-                      marginBottom: '1.5rem'
-                    }}>
-                      <div style={{fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px'}}>
-                        Danger Zone
-                      </div>
-                      <button className="btn btn-danger" onClick={resetRace} style={{width: '100%', padding: '1rem'}}>
-                        🔄 Reset Race
-                      </button>
-                      <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center', marginTop: '0.5rem'}}>
-                        This will clear all race data and return to setup
-                      </div>
-                    </div>
+                        <div className="form-group">
+                          <label className="form-label">Race Duration (hours)</label>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            value={raceDuration}
+                            onChange={(e) => setRaceDuration(Number(e.target.value))}
+                            min="1"
+                            max="24"
+                          />
+                        </div>
 
-                    <div style={{
-                      background: 'var(--surface-elevated)',
-                      padding: '1.5rem',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border)'
-                    }}>
-                      <div style={{fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px'}}>
-                        Race Configuration
-                      </div>
-                      <div style={{display: 'grid', gap: '0.75rem'}}>
-                        {teamName && (
-                          <div style={{display: 'flex', justifyContent: 'space-between', padding: '0.75rem', background: 'var(--dark-bg)', borderRadius: '6px'}}>
-                            <span style={{color: 'var(--text-secondary)'}}>Team:</span>
-                            <span style={{fontWeight: '700'}}>{teamName}</span>
+                        <div className="form-group">
+                          <label className="form-label">Kart Range (minutes)</label>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            value={kartRange}
+                            onChange={(e) => setKartRange(Number(e.target.value))}
+                            min="20"
+                            max="120"
+                          />
+                          <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem'}}>
+                            Time between pit stops
                           </div>
-                        )}
-                        <div style={{display: 'flex', justifyContent: 'space-between', padding: '0.75rem', background: 'var(--dark-bg)', borderRadius: '6px'}}>
-                          <span style={{color: 'var(--text-secondary)'}}>Track:</span>
-                          <span style={{fontWeight: '700'}}>{trackName}</span>
                         </div>
-                        <div style={{display: 'flex', justifyContent: 'space-between', padding: '0.75rem', background: 'var(--dark-bg)', borderRadius: '6px'}}>
-                          <span style={{color: 'var(--text-secondary)'}}>Kart Range:</span>
-                          <span style={{fontWeight: '700'}}>{kartRange} minutes</span>
+
+                        <div className="form-group">
+                          <label className="form-label">Minimum Pit Stop Time (seconds)</label>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            value={minPitTime}
+                            onChange={(e) => {
+                              const newMinPitTime = Number(e.target.value);
+                              setMinPitTime(newMinPitTime);
+                              // If min pit time is 0, also set pit exit time to 0
+                              if (newMinPitTime === 0) {
+                                setPitExitTime(0);
+                              }
+                            }}
+                            min="0"
+                            max="300"
+                          />
+                          <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem'}}>
+                            Mandatory time in pit bay (set to 0 if no minimum)
+                          </div>
                         </div>
-                        <div style={{display: 'flex', justifyContent: 'space-between', padding: '0.75rem', background: 'var(--dark-bg)', borderRadius: '6px'}}>
-                          <span style={{color: 'var(--text-secondary)'}}>Min Pit Time:</span>
-                          <span style={{fontWeight: '700'}}>{minPitTime} seconds</span>
+
+                        <div className="form-group">
+                          <label className="form-label">Pit Exit Time (seconds)</label>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            value={pitExitTime}
+                            onChange={(e) => setPitExitTime(Number(e.target.value))}
+                            min="0"
+                            max="60"
+                            disabled={minPitTime === 0}
+                          />
+                          <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem'}}>
+                            {minPitTime === 0 ? 'Disabled when no minimum pit time' : 'Time from pit bay to exit line'}
+                          </div>
                         </div>
-                        <div style={{display: 'flex', justifyContent: 'space-between', padding: '0.75rem', background: 'var(--dark-bg)', borderRadius: '6px'}}>
-                          <span style={{color: 'var(--text-secondary)'}}>Pit Exit Time:</span>
-                          <span style={{fontWeight: '700'}}>{pitExitTime} seconds</span>
-                        </div>
-                        <div style={{display: 'flex', justifyContent: 'space-between', padding: '0.75rem', background: 'var(--dark-bg)', borderRadius: '6px'}}>
-                          <span style={{color: 'var(--text-secondary)'}}>Race Duration:</span>
-                          <span style={{fontWeight: '700'}}>{raceDuration} hours</span>
+
+                        <div style={{
+                          padding: '1rem',
+                          background: 'var(--dark-bg)',
+                          borderRadius: '8px',
+                          border: '1px solid var(--border)',
+                          fontSize: '0.875rem'
+                        }}>
+                          <div style={{color: 'var(--text-secondary)', marginBottom: '0.5rem'}}>
+                            <strong>Read-Only:</strong>
+                          </div>
+                          {teamName && (
+                            <div style={{marginBottom: '0.5rem'}}>
+                              <span style={{color: 'var(--text-secondary)'}}>Team:</span> <span style={{color: 'white'}}>{teamName}</span>
+                            </div>
+                          )}
+                          <div>
+                            <span style={{color: 'var(--text-secondary)'}}>Track:</span> <span style={{color: 'white'}}>{trackName}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </div>
+                    )}
+                  </>
                 )}
               </>
             )}
