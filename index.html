@@ -474,8 +474,8 @@
       }
 
       .tab {
-        padding: 0.625rem 1rem;
-        font-size: 0.875rem;
+        padding: 0.625rem 0.75rem;
+        font-size: 0.8125rem;
         white-space: nowrap;
         flex-shrink: 0;
       }
@@ -1523,8 +1523,8 @@
                       
                       <div className="driver-card active">
                         <div className="driver-info">
-                          <div className="driver-name">{drivers[currentDriverIndex]?.name}</div>
-                          <div className="driver-status">
+                          <div style={{display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap'}}>
+                            <div className="driver-name">{drivers[currentDriverIndex]?.name}</div>
                             <span className="status-badge active">On Track</span>
                           </div>
                         </div>
