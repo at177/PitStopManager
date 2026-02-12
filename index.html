@@ -1554,8 +1554,8 @@
                       <div className="section-title">Next Up</div>
                       <div className={`driver-card ${nextDriverReady ? 'next-up' : ''}`}>
                         <div className="driver-info">
-                          <div className="driver-name">{drivers[nextDriverIndex]?.name}</div>
-                          <div className="driver-status">
+                          <div style={{display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap'}}>
+                            <div className="driver-name">{drivers[nextDriverIndex]?.name}</div>
                             {nextDriverReady ? (
                               <span className="status-badge next">✓ Ready</span>
                             ) : (
