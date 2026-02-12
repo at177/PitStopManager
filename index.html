@@ -467,15 +467,15 @@
       }
 
       .tabs {
-        gap: 0.25rem;
+        gap: 0;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
         margin-bottom: 1rem;
       }
 
       .tab {
-        padding: 0.625rem 0.75rem;
-        font-size: 0.8125rem;
+        padding: 0.625rem 0.5rem;
+        font-size: 0.75rem;
         white-space: nowrap;
         flex-shrink: 0;
       }
@@ -1600,7 +1600,7 @@
 
                 {activeTab === 'drivers' && !raceFinished && (
                   <div className="section">
-                    <div className="section-title">Driver Statistics</div>
+                    <div className="section-title">Driver Information</div>
                     
                     <div style={{
                       padding: '1rem',
