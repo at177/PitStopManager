@@ -658,14 +658,34 @@
           if (qrContainer) {
             qrContainer.innerHTML = ''; // Clear previous QR code
             
-            // Use Google Charts API for better QR code generation
-            const img = document.createElement('img');
-            const encodedURL = encodeURIComponent(qrCodeData);
-            img.src = `https://chart.googleapis.com/chart?cht=qr&chs=300x300&chl=${encodedURL}&choe=UTF-8`;
-            img.style.maxWidth = '100%';
-            img.style.height = 'auto';
-            img.alt = 'Transfer QR Code';
-            qrContainer.appendChild(img);
+            // Use canvas to create QR code via API, then display as image
+            const canvas = document.createElement('canvas');
+            const img = new Image();
+            
+            // Encode URL properly for Google Charts API
+            const encodedData = encodeURIComponent(qrCodeData);
+            const qrURL = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodedData}`;
+            
+            img.crossOrigin = 'anonymous';
+            img.onload = function() {
+              canvas.width = 300;
+              canvas.height = 300;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0);
+              qrContainer.appendChild(canvas);
+            };
+            
+            img.onerror = function() {
+              // Fallback: just show a message
+              qrContainer.innerHTML = `
+                <div style="padding: 2rem; background: #f0f0f0; border-radius: 8px; color: #333;">
+                  <p style="margin: 0 0 1rem 0; font-weight: 600;">QR Code Display Issue</p>
+                  <p style="margin: 0; font-size: 0.875rem;">Please use the "Copy URL" button below and share the link directly.</p>
+                </div>
+              `;
+            };
+            
+            img.src = qrURL;
           }
         }
       }, [showQRCode, qrCodeData]);
@@ -743,70 +763,81 @@
 
       // Check for transfer URL on mount, then check localStorage
       useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const transferData = urlParams.get('t');
         const hash = window.location.hash;
         
-        // Check if URL has transfer data
-        if (hash && hash.includes('#transfer=')) {
+        // Check for new format (?t=) or legacy format (#transfer=)
+        let raceState = null;
+        
+        if (transferData) {
+          try {
+            const jsonString = decodeURIComponent(escape(atob(transferData)));
+            raceState = JSON.parse(jsonString);
+          } catch (error) {
+            console.error('Error parsing ?t= transfer:', error);
+          }
+        } else if (hash && hash.includes('#transfer=')) {
           try {
             const base64Data = hash.split('#transfer=')[1];
             const jsonString = atob(base64Data);
-            const raceState = JSON.parse(jsonString);
-            
-            // Confirm import
-            const doImport = window.confirm(
-              `Load transferred race?\n\n` +
-              `Team: ${raceState.teamName}\n` +
-              `Track: ${raceState.trackName}\n` +
-              `Race time: ${formatTime(raceState.elapsedTime)}\n\n` +
-              `Click OK to load this race.`
-            );
-            
-            if (doImport) {
-              // Restore all state
-              setTeamName(raceState.teamName || '');
-              setTrackName(raceState.trackName || '');
-              setKartRange(raceState.kartRange || 60);
-              setMinPitTime(raceState.minPitTime || 0);
-              setPitExitTime(raceState.pitExitTime || 0);
-              setRaceDuration(raceState.raceDuration || 480);
-              setDrivers(raceState.drivers || []);
-              setCurrentDriverIndex(raceState.currentDriverIndex || 0);
-              setRaceStarted(raceState.raceStarted || false);
-              setStintStartTime(raceState.stintStartTime || 0);
-              setRacePaused(raceState.racePaused || false);
-              setPausedAtTime(raceState.pausedAtTime || 0);
-              setNextDriverReady(raceState.nextDriverReady || false);
-              setInPitStop(raceState.inPitStop || false);
-              setPitStopStartTime(raceState.pitStopStartTime || 0);
-              setPitStopElapsedTime(raceState.pitStopElapsedTime || 0);
-              setSameDriverContinues(raceState.sameDriverContinues || false);
-              setPitStops(raceState.pitStops || []);
-              setShown20MinAlert(raceState.shown20MinAlert || false);
-              setShown10MinAlert(raceState.shown10MinAlert || false);
-              
-              // If race was running, recalculate elapsed time from timestamp
-              if (raceState.raceStarted && !raceState.racePaused && raceState.raceStartTimestamp) {
-                const now = Date.now();
-                const actualElapsed = Math.floor((now - raceState.raceStartTimestamp) / 1000);
-                setElapsedTime(actualElapsed);
-                setRaceStartTimestamp(raceState.raceStartTimestamp);
-              } else {
-                setElapsedTime(raceState.elapsedTime || 0);
-                setRaceStartTimestamp(raceState.raceStartTimestamp || Date.now());
-              }
-              
-              setActiveTab('race');
-              
-              // Clear the hash from URL
-              window.history.replaceState(null, '', window.location.pathname);
-              return; // Don't check localStorage
-            } else {
-              // User declined, clear the hash
-              window.history.replaceState(null, '', window.location.pathname);
-            }
+            raceState = JSON.parse(jsonString);
           } catch (error) {
-            alert('Error loading transferred race data. Starting fresh.');
-            console.error('Transfer load error:', error);
+            console.error('Error parsing #transfer= transfer:', error);
+          }
+        }
+        
+        if (raceState) {
+          // Confirm import
+          const doImport = window.confirm(
+            `Load transferred race?\n\n` +
+            `Team: ${raceState.teamName}\n` +
+            `Track: ${raceState.trackName}\n` +
+            `Race time: ${formatTime(raceState.elapsedTime)}\n\n` +
+            `Click OK to load this race.`
+          );
+          
+          if (doImport) {
+            // Restore all state
+            setTeamName(raceState.teamName || '');
+            setTrackName(raceState.trackName || '');
+            setKartRange(raceState.kartRange || 60);
+            setMinPitTime(raceState.minPitTime || 0);
+            setPitExitTime(raceState.pitExitTime || 0);
+            setRaceDuration(raceState.raceDuration || 480);
+            setDrivers(raceState.drivers || []);
+            setCurrentDriverIndex(raceState.currentDriverIndex || 0);
+            setRaceStarted(raceState.raceStarted || false);
+            setStintStartTime(raceState.stintStartTime || 0);
+            setRacePaused(raceState.racePaused || false);
+            setPausedAtTime(raceState.pausedAtTime || 0);
+            setNextDriverReady(raceState.nextDriverReady || false);
+            setInPitStop(raceState.inPitStop || false);
+            setPitStopStartTime(raceState.pitStopStartTime || 0);
+            setPitStopElapsedTime(raceState.pitStopElapsedTime || 0);
+            setSameDriverContinues(raceState.sameDriverContinues || false);
+            setPitStops(raceState.pitStops || []);
+            setShown20MinAlert(raceState.shown20MinAlert || false);
+            setShown10MinAlert(raceState.shown10MinAlert || false);
+            
+            // If race was running, recalculate elapsed time from timestamp
+            if (raceState.raceStarted && !raceState.racePaused && raceState.raceStartTimestamp) {
+              const now = Date.now();
+              const actualElapsed = Math.floor((now - raceState.raceStartTimestamp) / 1000);
+              setElapsedTime(actualElapsed);
+              setRaceStartTimestamp(raceState.raceStartTimestamp);
+            } else {
+              setElapsedTime(raceState.elapsedTime || 0);
+              setRaceStartTimestamp(raceState.raceStartTimestamp || Date.now());
+            }
+            
+            setActiveTab('race');
+            
+            // Clear the URL parameters
+            window.history.replaceState(null, '', window.location.pathname);
+            return; // Don't check localStorage
+          } else {
+            // User declined, clear the URL
             window.history.replaceState(null, '', window.location.pathname);
           }
         }
@@ -1051,13 +1082,13 @@
           transferredAt: new Date().toISOString()
         };
         
-        // Encode race state as base64 for URL
+        // Compress: JSON -> base64 -> URL encode
         const jsonString = JSON.stringify(raceState);
-        const base64Data = btoa(jsonString);
+        const base64Data = btoa(unescape(encodeURIComponent(jsonString)));
         
-        // Create URL with current page location + hash parameter
+        // Create shorter URL format
         const currentURL = window.location.href.split('#')[0].split('?')[0];
-        const transferURL = `${currentURL}#transfer=${base64Data}`;
+        const transferURL = `${currentURL}?t=${base64Data}`;
         
         setQRCodeData(transferURL);
         setShowQRCode(true);
