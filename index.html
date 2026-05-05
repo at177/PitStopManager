@@ -1233,8 +1233,8 @@
         const currentStintTime = pitStopStartTime - stintStartTime;
         const currentDriver = drivers[currentDriverIndex];
         const actualPitTime = elapsedTime - pitStopStartTime;
-        // Add exit travel time to get total time in pits
-        const totalPitTime = actualPitTime + pitExitTime;
+        // Add exit travel time to get total time in pits (handle empty string)
+        const totalPitTime = actualPitTime + (pitExitTime || 0);
         
         // Record pit stop (mark as double stint if same driver continues)
         setPitStops([{
@@ -1300,8 +1300,8 @@
         const currentStintTime = pitStopStartTime - stintStartTime;
         const currentDriver = drivers[currentDriverIndex];
         const actualPitTime = elapsedTime - pitStopStartTime;
-        // Add exit travel time to get total time in pits
-        const totalPitTime = actualPitTime + pitExitTime;
+        // Add exit travel time to get total time in pits (handle empty string)
+        const totalPitTime = actualPitTime + (pitExitTime || 0);
         const isDoubleStint = window.isDoubleStint || false;
         
         setPitStops([{
@@ -1660,15 +1660,15 @@
                           <div className="stats-grid" style={{marginBottom: '1.5rem'}}>
                             <div className="stat-card">
                               <div className="stat-label">Min Pit Time</div>
-                              <div className="stat-value" style={{fontSize: '1.25rem'}}>{minPitTime}s</div>
+                              <div className="stat-value" style={{fontSize: '1.25rem'}}>{minPitTime || 0}s</div>
                             </div>
                             <div className="stat-card">
                               <div className="stat-label">Exit Travel Time</div>
-                              <div className="stat-value" style={{fontSize: '1.25rem'}}>{pitExitTime}s</div>
+                              <div className="stat-value" style={{fontSize: '1.25rem'}}>{pitExitTime || 0}s</div>
                             </div>
                             <div className="stat-card" style={{gridColumn: 'span 2'}}>
                               <div className="stat-label">Leave Pit Bay At</div>
-                              <div className="stat-value" style={{fontSize: '1.25rem'}}>{minPitTime - pitExitTime}s</div>
+                              <div className="stat-value" style={{fontSize: '1.25rem'}}>{(minPitTime || 0) - (pitExitTime || 0)}s</div>
                             </div>
                           </div>
                         )}
