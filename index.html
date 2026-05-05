@@ -596,7 +596,6 @@
       }
     }
   </style>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
   <div id="root"></div>
@@ -658,14 +657,15 @@
           const qrContainer = document.getElementById('qrcode');
           if (qrContainer) {
             qrContainer.innerHTML = ''; // Clear previous QR code
-            new QRCode(qrContainer, {
-              text: qrCodeData,
-              width: 256,
-              height: 256,
-              colorDark: '#000000',
-              colorLight: '#ffffff',
-              correctLevel: QRCode.CorrectLevel.H
-            });
+            
+            // Use Google Charts API for better QR code generation
+            const img = document.createElement('img');
+            const encodedURL = encodeURIComponent(qrCodeData);
+            img.src = `https://chart.googleapis.com/chart?cht=qr&chs=300x300&chl=${encodedURL}&choe=UTF-8`;
+            img.style.maxWidth = '100%';
+            img.style.height = 'auto';
+            img.alt = 'Transfer QR Code';
+            qrContainer.appendChild(img);
           }
         }
       }, [showQRCode, qrCodeData]);
@@ -1402,7 +1402,10 @@
                     type="number" 
                     className="form-input" 
                     value={kartRange}
-                    onChange={(e) => setKartRange(Number(e.target.value))}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setKartRange(val === '' ? '' : Number(val));
+                    }}
                     min="20"
                     max="120"
                   />
@@ -1415,7 +1418,8 @@
                     className="form-input" 
                     value={minPitTime}
                     onChange={(e) => {
-                      const newMinPitTime = Number(e.target.value);
+                      const val = e.target.value;
+                      const newMinPitTime = val === '' ? '' : Number(val);
                       setMinPitTime(newMinPitTime);
                       // If min pit time is 0, also set pit exit time to 0
                       if (newMinPitTime === 0) {
@@ -1436,7 +1440,10 @@
                     type="number" 
                     className="form-input" 
                     value={pitExitTime}
-                    onChange={(e) => setPitExitTime(Number(e.target.value))}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setPitExitTime(val === '' ? '' : Number(val));
+                    }}
                     min="0"
                     max="60"
                     disabled={minPitTime === 0}
@@ -1452,13 +1459,16 @@
                     type="number" 
                     className="form-input" 
                     value={raceDuration}
-                    onChange={(e) => setRaceDuration(Number(e.target.value))}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setRaceDuration(val === '' ? '' : Number(val));
+                    }}
                     min="60"
                     max="1440"
                     step="5"
                   />
                   <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem'}}>
-                    {Math.floor(raceDuration / 60)}h {raceDuration % 60}m
+                    {raceDuration ? `${Math.floor(raceDuration / 60)}h ${raceDuration % 60}m` : ''}
                   </div>
                 </div>
 
@@ -2265,13 +2275,16 @@
                             type="number" 
                             className="form-input" 
                             value={raceDuration}
-                            onChange={(e) => setRaceDuration(Number(e.target.value))}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setRaceDuration(val === '' ? '' : Number(val));
+                            }}
                             min="60"
                             max="1440"
                             step="5"
                           />
                           <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.5rem'}}>
-                            {Math.floor(raceDuration / 60)}h {raceDuration % 60}m
+                            {raceDuration ? `${Math.floor(raceDuration / 60)}h ${raceDuration % 60}m` : ''}
                           </div>
                         </div>
 
@@ -2281,7 +2294,10 @@
                             type="number" 
                             className="form-input" 
                             value={kartRange}
-                            onChange={(e) => setKartRange(Number(e.target.value))}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setKartRange(val === '' ? '' : Number(val));
+                            }}
                             min="20"
                             max="120"
                           />
@@ -2297,7 +2313,8 @@
                             className="form-input" 
                             value={minPitTime}
                             onChange={(e) => {
-                              const newMinPitTime = Number(e.target.value);
+                              const val = e.target.value;
+                              const newMinPitTime = val === '' ? '' : Number(val);
                               setMinPitTime(newMinPitTime);
                               // If min pit time is 0, also set pit exit time to 0
                               if (newMinPitTime === 0) {
@@ -2318,7 +2335,10 @@
                             type="number" 
                             className="form-input" 
                             value={pitExitTime}
-                            onChange={(e) => setPitExitTime(Number(e.target.value))}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setPitExitTime(val === '' ? '' : Number(val));
+                            }}
                             min="0"
                             max="60"
                             disabled={minPitTime === 0}
