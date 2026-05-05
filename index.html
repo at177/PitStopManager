@@ -741,8 +741,77 @@
           nextDriverReady, inPitStop, pitStopStartTime, pitStopElapsedTime, pitStops, teamName, trackName, kartRange, 
           minPitTime, pitExitTime, raceDuration]);
 
-      // Check for saved race on mount
+      // Check for transfer URL on mount, then check localStorage
       useEffect(() => {
+        const hash = window.location.hash;
+        
+        // Check if URL has transfer data
+        if (hash && hash.includes('#transfer=')) {
+          try {
+            const base64Data = hash.split('#transfer=')[1];
+            const jsonString = atob(base64Data);
+            const raceState = JSON.parse(jsonString);
+            
+            // Confirm import
+            const doImport = window.confirm(
+              `Load transferred race?\n\n` +
+              `Team: ${raceState.teamName}\n` +
+              `Track: ${raceState.trackName}\n` +
+              `Race time: ${formatTime(raceState.elapsedTime)}\n\n` +
+              `Click OK to load this race.`
+            );
+            
+            if (doImport) {
+              // Restore all state
+              setTeamName(raceState.teamName || '');
+              setTrackName(raceState.trackName || '');
+              setKartRange(raceState.kartRange || 60);
+              setMinPitTime(raceState.minPitTime || 0);
+              setPitExitTime(raceState.pitExitTime || 0);
+              setRaceDuration(raceState.raceDuration || 480);
+              setDrivers(raceState.drivers || []);
+              setCurrentDriverIndex(raceState.currentDriverIndex || 0);
+              setRaceStarted(raceState.raceStarted || false);
+              setStintStartTime(raceState.stintStartTime || 0);
+              setRacePaused(raceState.racePaused || false);
+              setPausedAtTime(raceState.pausedAtTime || 0);
+              setNextDriverReady(raceState.nextDriverReady || false);
+              setInPitStop(raceState.inPitStop || false);
+              setPitStopStartTime(raceState.pitStopStartTime || 0);
+              setPitStopElapsedTime(raceState.pitStopElapsedTime || 0);
+              setSameDriverContinues(raceState.sameDriverContinues || false);
+              setPitStops(raceState.pitStops || []);
+              setShown20MinAlert(raceState.shown20MinAlert || false);
+              setShown10MinAlert(raceState.shown10MinAlert || false);
+              
+              // If race was running, recalculate elapsed time from timestamp
+              if (raceState.raceStarted && !raceState.racePaused && raceState.raceStartTimestamp) {
+                const now = Date.now();
+                const actualElapsed = Math.floor((now - raceState.raceStartTimestamp) / 1000);
+                setElapsedTime(actualElapsed);
+                setRaceStartTimestamp(raceState.raceStartTimestamp);
+              } else {
+                setElapsedTime(raceState.elapsedTime || 0);
+                setRaceStartTimestamp(raceState.raceStartTimestamp || Date.now());
+              }
+              
+              setActiveTab('race');
+              
+              // Clear the hash from URL
+              window.history.replaceState(null, '', window.location.pathname);
+              return; // Don't check localStorage
+            } else {
+              // User declined, clear the hash
+              window.history.replaceState(null, '', window.location.pathname);
+            }
+          } catch (error) {
+            alert('Error loading transferred race data. Starting fresh.');
+            console.error('Transfer load error:', error);
+            window.history.replaceState(null, '', window.location.pathname);
+          }
+        }
+        
+        // No transfer URL (or user declined), check localStorage for saved race
         const savedState = localStorage.getItem('kartraceState');
         if (savedState && !raceStarted) {
           const state = JSON.parse(savedState);
@@ -982,17 +1051,34 @@
           transferredAt: new Date().toISOString()
         };
         
-        const compressed = JSON.stringify(raceState);
-        setQRCodeData(compressed);
+        // Encode race state as base64 for URL
+        const jsonString = JSON.stringify(raceState);
+        const base64Data = btoa(jsonString);
+        
+        // Create URL with current page location + hash parameter
+        const currentURL = window.location.href.split('#')[0].split('?')[0];
+        const transferURL = `${currentURL}#transfer=${base64Data}`;
+        
+        setQRCodeData(transferURL);
         setShowQRCode(true);
       };
 
       const importFromQR = () => {
-        const input = prompt('Paste the race data from the QR code scanner or enter manually:');
+        const input = prompt('Paste the transfer URL or race data:');
         if (!input) return;
         
         try {
-          const raceState = JSON.parse(input);
+          let raceState;
+          
+          // Check if it's a URL with hash
+          if (input.includes('#transfer=')) {
+            const base64Data = input.split('#transfer=')[1];
+            const jsonString = atob(base64Data);
+            raceState = JSON.parse(jsonString);
+          } else {
+            // Try parsing as direct JSON (legacy support)
+            raceState = JSON.parse(input);
+          }
           
           // Confirm before importing
           if (!confirm(`Import race for ${raceState.teamName} at ${raceState.trackName}?\n\nThis will replace your current race data.`)) {
@@ -1034,7 +1120,7 @@
           alert('Race data imported successfully!');
           
         } catch (error) {
-          alert('Error importing race data. Please check the QR code data and try again.');
+          alert('Error importing race data. Please check the transfer URL or data and try again.');
           console.error('Import error:', error);
         }
       };
@@ -2095,7 +2181,7 @@
                             textAlign: 'center'
                           }}>
                             <div style={{marginBottom: '1rem', color: 'var(--dark-bg)', fontWeight: '700'}}>
-                              Scan this QR code on the receiving device
+                              Scan this QR code to open the app with race data
                             </div>
                             <div id="qrcode" style={{
                               display: 'flex',
@@ -2104,6 +2190,14 @@
                             }}></div>
                             <div style={{
                               fontSize: '0.75rem',
+                              color: 'var(--dark-bg)',
+                              marginBottom: '0.5rem',
+                              fontWeight: '600'
+                            }}>
+                              Or share this URL:
+                            </div>
+                            <div style={{
+                              fontSize: '0.65rem',
                               color: 'var(--dark-bg)',
                               wordBreak: 'break-all',
                               maxHeight: '100px',
@@ -2119,11 +2213,11 @@
                               className="btn btn-secondary" 
                               onClick={() => {
                                 navigator.clipboard.writeText(qrCodeData);
-                                alert('Race data copied to clipboard!');
+                                alert('Transfer URL copied to clipboard!');
                               }}
                               style={{marginBottom: '0.5rem'}}
                             >
-                              📋 Copy Data
+                              📋 Copy URL
                             </button>
                             <button 
                               className="btn btn-danger" 
