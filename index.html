@@ -596,6 +596,7 @@
       }
     }
   </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
   <div id="root"></div>
@@ -645,7 +646,29 @@
       const [shown20MinAlert, setShown20MinAlert] = useState(false);
       const [shown10MinAlert, setShown10MinAlert] = useState(false);
       
+      // QR code transfer
+      const [showQRCode, setShowQRCode] = useState(false);
+      const [qrCodeData, setQRCodeData] = useState('');
+      
       const timerRef = useRef(null);
+
+      // Generate QR code when showQRCode becomes true
+      useEffect(() => {
+        if (showQRCode && qrCodeData) {
+          const qrContainer = document.getElementById('qrcode');
+          if (qrContainer) {
+            qrContainer.innerHTML = ''; // Clear previous QR code
+            new QRCode(qrContainer, {
+              text: qrCodeData,
+              width: 256,
+              height: 256,
+              colorDark: '#000000',
+              colorLight: '#ffffff',
+              correctLevel: QRCode.CorrectLevel.H
+            });
+          }
+        }
+      }, [showQRCode, qrCodeData]);
 
       // Show driver alerts at 20 and 10 minutes before pit stop
       useEffect(() => {
@@ -930,6 +953,90 @@
           setRaceStartTimestamp(Date.now() - (elapsedTime * 1000));
         }
         setRacePaused(!racePaused);
+      };
+
+      const generateQRCode = () => {
+        const raceState = {
+          teamName,
+          trackName,
+          kartRange,
+          minPitTime,
+          pitExitTime,
+          raceDuration,
+          drivers,
+          currentDriverIndex,
+          raceStarted,
+          raceStartTimestamp,
+          elapsedTime,
+          stintStartTime,
+          racePaused,
+          pausedAtTime,
+          nextDriverReady,
+          inPitStop,
+          pitStopStartTime,
+          pitStopElapsedTime,
+          sameDriverContinues,
+          pitStops,
+          shown20MinAlert,
+          shown10MinAlert,
+          transferredAt: new Date().toISOString()
+        };
+        
+        const compressed = JSON.stringify(raceState);
+        setQRCodeData(compressed);
+        setShowQRCode(true);
+      };
+
+      const importFromQR = () => {
+        const input = prompt('Paste the race data from the QR code scanner or enter manually:');
+        if (!input) return;
+        
+        try {
+          const raceState = JSON.parse(input);
+          
+          // Confirm before importing
+          if (!confirm(`Import race for ${raceState.teamName} at ${raceState.trackName}?\n\nThis will replace your current race data.`)) {
+            return;
+          }
+          
+          // Restore all state
+          setTeamName(raceState.teamName || '');
+          setTrackName(raceState.trackName || '');
+          setKartRange(raceState.kartRange || 60);
+          setMinPitTime(raceState.minPitTime || 0);
+          setPitExitTime(raceState.pitExitTime || 0);
+          setRaceDuration(raceState.raceDuration || 480);
+          setDrivers(raceState.drivers || []);
+          setCurrentDriverIndex(raceState.currentDriverIndex || 0);
+          setRaceStarted(raceState.raceStarted || false);
+          setRaceStartTimestamp(raceState.raceStartTimestamp || Date.now());
+          setElapsedTime(raceState.elapsedTime || 0);
+          setStintStartTime(raceState.stintStartTime || 0);
+          setRacePaused(raceState.racePaused || false);
+          setPausedAtTime(raceState.pausedAtTime || 0);
+          setNextDriverReady(raceState.nextDriverReady || false);
+          setInPitStop(raceState.inPitStop || false);
+          setPitStopStartTime(raceState.pitStopStartTime || 0);
+          setPitStopElapsedTime(raceState.pitStopElapsedTime || 0);
+          setSameDriverContinues(raceState.sameDriverContinues || false);
+          setPitStops(raceState.pitStops || []);
+          setShown20MinAlert(raceState.shown20MinAlert || false);
+          setShown10MinAlert(raceState.shown10MinAlert || false);
+          
+          // If race was running, recalculate elapsed time
+          if (raceState.raceStarted && !raceState.racePaused && raceState.raceStartTimestamp) {
+            const now = Date.now();
+            const actualElapsed = Math.floor((now - raceState.raceStartTimestamp) / 1000);
+            setElapsedTime(actualElapsed);
+          }
+          
+          setActiveTab('race');
+          alert('Race data imported successfully!');
+          
+        } catch (error) {
+          alert('Error importing race data. Please check the QR code data and try again.');
+          console.error('Import error:', error);
+        }
       };
 
       const resetRace = () => {
@@ -1954,6 +2061,78 @@
                         <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center', marginTop: '0.5rem'}}>
                           End race and show final results
                         </div>
+                      </div>
+
+                      <div style={{
+                        background: 'var(--surface-elevated)',
+                        padding: '1.5rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border)',
+                        marginBottom: '1.5rem'
+                      }}>
+                        <div style={{fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1rem', textTransform: 'uppercase', letterSpacing: '1px'}}>
+                          Transfer Race
+                        </div>
+                        
+                        <button className="btn btn-secondary" onClick={generateQRCode} style={{width: '100%', padding: '1rem', marginBottom: '0.75rem'}}>
+                          📱 Generate QR Code
+                        </button>
+                        
+                        <button className="btn btn-secondary" onClick={importFromQR} style={{width: '100%', padding: '1rem', marginBottom: '0.75rem'}}>
+                          📥 Import from QR Code
+                        </button>
+                        
+                        <div style={{fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center'}}>
+                          Transfer race management to another device
+                        </div>
+                        
+                        {showQRCode && (
+                          <div style={{
+                            marginTop: '1.5rem',
+                            padding: '1.5rem',
+                            background: 'white',
+                            borderRadius: '8px',
+                            textAlign: 'center'
+                          }}>
+                            <div style={{marginBottom: '1rem', color: 'var(--dark-bg)', fontWeight: '700'}}>
+                              Scan this QR code on the receiving device
+                            </div>
+                            <div id="qrcode" style={{
+                              display: 'flex',
+                              justifyContent: 'center',
+                              marginBottom: '1rem'
+                            }}></div>
+                            <div style={{
+                              fontSize: '0.75rem',
+                              color: 'var(--dark-bg)',
+                              wordBreak: 'break-all',
+                              maxHeight: '100px',
+                              overflow: 'auto',
+                              padding: '0.5rem',
+                              background: '#f0f0f0',
+                              borderRadius: '4px',
+                              marginBottom: '1rem'
+                            }}>
+                              {qrCodeData}
+                            </div>
+                            <button 
+                              className="btn btn-secondary" 
+                              onClick={() => {
+                                navigator.clipboard.writeText(qrCodeData);
+                                alert('Race data copied to clipboard!');
+                              }}
+                              style={{marginBottom: '0.5rem'}}
+                            >
+                              📋 Copy Data
+                            </button>
+                            <button 
+                              className="btn btn-danger" 
+                              onClick={() => setShowQRCode(false)}
+                            >
+                              Close
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                       <div style={{
