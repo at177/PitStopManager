@@ -764,13 +764,23 @@
       // Check for transfer URL on mount, then check localStorage
       useEffect(() => {
         const urlParams = new URLSearchParams(window.location.search);
+        const raceData = urlParams.get('race');
         const transferData = urlParams.get('t');
         const hash = window.location.hash;
         
-        // Check for new format (?t=) or legacy format (#transfer=)
+        // Check for different URL formats
         let raceState = null;
         
-        if (transferData) {
+        if (raceData) {
+          // New format: ?race=...
+          try {
+            const jsonString = decodeURIComponent(escape(atob(raceData)));
+            raceState = JSON.parse(jsonString);
+          } catch (error) {
+            console.error('Error parsing ?race= transfer:', error);
+          }
+        } else if (transferData) {
+          // Legacy format: ?t=...
           try {
             const jsonString = decodeURIComponent(escape(atob(transferData)));
             raceState = JSON.parse(jsonString);
@@ -778,6 +788,7 @@
             console.error('Error parsing ?t= transfer:', error);
           }
         } else if (hash && hash.includes('#transfer=')) {
+          // Legacy format: #transfer=...
           try {
             const base64Data = hash.split('#transfer=')[1];
             const jsonString = atob(base64Data);
@@ -1045,6 +1056,10 @@
 
       const togglePause = () => {
         if (!racePaused) {
+          // Confirm before pausing
+          if (!confirm('Pause the race timer?')) {
+            return;
+          }
           // Pausing - record current elapsed time
           setPausedAtTime(elapsedTime);
         } else {
@@ -1082,13 +1097,12 @@
           transferredAt: new Date().toISOString()
         };
         
-        // Compress: JSON -> base64 -> URL encode
+        // Compress: JSON -> base64
         const jsonString = JSON.stringify(raceState);
         const base64Data = btoa(unescape(encodeURIComponent(jsonString)));
         
-        // Create shorter URL format
-        const currentURL = window.location.href.split('#')[0].split('?')[0];
-        const transferURL = `${currentURL}?t=${base64Data}`;
+        // Use hardcoded clean URL (without index.html for cleaner look)
+        const transferURL = `https://at177.github.io/PitStopManager/?race=${base64Data}`;
         
         setQRCodeData(transferURL);
         setShowQRCode(true);
@@ -2074,11 +2088,11 @@
                           </div>
                           <div style={{display: 'flex', justifyContent: 'space-between'}}>
                             <span>Min Pit Time:</span>
-                            <span style={{color: 'white'}}>{minPitTime} seconds</span>
+                            <span style={{color: 'white'}}>{minPitTime || 0} seconds</span>
                           </div>
                           <div style={{display: 'flex', justifyContent: 'space-between'}}>
                             <span>Pit Exit Time:</span>
-                            <span style={{color: 'white'}}>{pitExitTime} seconds</span>
+                            <span style={{color: 'white'}}>{pitExitTime || 0} seconds</span>
                           </div>
                         </div>
                       </div>
