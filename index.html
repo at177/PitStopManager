@@ -1312,11 +1312,11 @@
           doubleStint: sameDriverContinues
         }, ...pitStops]);
 
-        // Update driver stats
+        // Update driver stats - only increment stint count if driver is changing
         const updatedDrivers = [...drivers];
         updatedDrivers[currentDriverIndex] = {
           ...currentDriver,
-          stints: currentDriver.stints + 1,
+          stints: sameDriverContinues ? currentDriver.stints : currentDriver.stints + 1,
           totalTime: currentDriver.totalTime + currentStintTime
         };
         setDrivers(updatedDrivers);
@@ -1325,8 +1325,13 @@
         const nextIndex = sameDriverContinues ? currentDriverIndex : (currentDriverIndex + 1) % drivers.length;
         
         setCurrentDriverIndex(nextIndex);
-        // Stint starts NOW when driver is released (not after exit time)
-        setStintStartTime(elapsedTime);
+        
+        // If same driver continues, keep the same stint start time (continue the stint)
+        // Otherwise, start a new stint NOW when driver is released
+        if (!sameDriverContinues) {
+          setStintStartTime(elapsedTime);
+        }
+        // If sameDriverContinues is true, stintStartTime remains unchanged - stint continues
         
         // Start exit countdown overlay
         setShowExitCountdown(true);
@@ -1781,7 +1786,7 @@
                               }}
                             />
                             <span style={{fontSize: '1rem', fontWeight: '600'}}>
-                              Check if no driver change
+                              Check box if no driver change
                             </span>
                           </label>
                           {sameDriverContinues && (
