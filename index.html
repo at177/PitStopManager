@@ -635,6 +635,7 @@
       const [pitStopStartTime, setPitStopStartTime] = useState(0);
       const [pitStopElapsedTime, setPitStopElapsedTime] = useState(0);
       const [sameDriverContinues, setSameDriverContinues] = useState(false);
+      const [noRefuel, setNoRefuel] = useState(false);
       const [showExitCountdown, setShowExitCountdown] = useState(false);
       const [exitCountdownStart, setExitCountdownStart] = useState(0);
       
@@ -749,6 +750,7 @@
             pitStopStartTime,
             pitStopElapsedTime,
             sameDriverContinues,
+            noRefuel,
             pitStops,
             shown20MinAlert,
             shown10MinAlert,
@@ -901,6 +903,7 @@
               setPitStopStartTime(state.pitStopStartTime || 0);
               setPitStopElapsedTime(state.pitStopElapsedTime || 0);
               setSameDriverContinues(state.sameDriverContinues || false);
+              setNoRefuel(state.noRefuel || false);
               setPitStops(state.pitStops);
               setShown20MinAlert(state.shown20MinAlert || false);
               setShown10MinAlert(state.shown10MinAlert || false);
@@ -1220,6 +1223,7 @@
           summary += `    Stint: ${formatTime(stop.stintDuration)}  |  Pit: ${formatTime(stop.pitDuration)}\n`;
           if (stop.emergency) summary += `    ⚠ EMERGENCY PIT\n`;
           if (stop.doubleStint) summary += `    ↻ DOUBLE STINT\n`;
+          if (stop.noRefuel) summary += `    🚫 NO REFUEL\n`;
           summary += `\n`;
         });
         
@@ -1253,6 +1257,7 @@
           setPitStopStartTime(0);
           setPitStopElapsedTime(0);
           setSameDriverContinues(false);
+          setNoRefuel(false);
           // Clear saved state
           localStorage.removeItem('kartraceState');
         }
@@ -1291,6 +1296,7 @@
           setInPitStop(false);
           setPitStopElapsedTime(0);
           setSameDriverContinues(false);
+          setNoRefuel(false);
           // Don't change driver index or stint start time - keep racing as before
         }
       };
@@ -1309,7 +1315,8 @@
           stintDuration: currentStintTime,
           pitDuration: totalPitTime,
           timestamp: new Date().toLocaleTimeString(),
-          doubleStint: sameDriverContinues
+          doubleStint: sameDriverContinues,
+          noRefuel: noRefuel
         }, ...pitStops]);
 
         // Update driver stats - only increment stint count if driver is changing
@@ -1326,12 +1333,12 @@
         
         setCurrentDriverIndex(nextIndex);
         
-        // If same driver continues, keep the same stint start time (continue the stint)
+        // If same driver continues OR no refuel, keep the same stint start time (continue the stint)
         // Otherwise, start a new stint NOW when driver is released
-        if (!sameDriverContinues) {
+        if (!sameDriverContinues && !noRefuel) {
           setStintStartTime(elapsedTime);
         }
-        // If sameDriverContinues is true, stintStartTime remains unchanged - stint continues
+        // If sameDriverContinues OR noRefuel is true, stintStartTime remains unchanged - stint continues
         
         // Start exit countdown overlay
         setShowExitCountdown(true);
@@ -1342,6 +1349,7 @@
         setPitStopElapsedTime(0);
         setNextDriverReady(false);
         setSameDriverContinues(false);
+        setNoRefuel(false);
         
         // Reset driver alerts for next stint
         setShown20MinAlert(false);
@@ -1405,6 +1413,7 @@
         setPitStopElapsedTime(0);
         setNextDriverReady(false);
         setSameDriverContinues(false);
+        setNoRefuel(false);
         delete window.emergencyTargetDriver;
         delete window.isDoubleStint;
         
@@ -1767,35 +1776,69 @@
                           border: '1px solid var(--border)',
                           marginBottom: '1.5rem'
                         }}>
-                          <label style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.75rem',
-                            cursor: 'pointer',
-                            userSelect: 'none'
-                          }}>
-                            <input 
-                              type="checkbox" 
-                              checked={sameDriverContinues}
-                              onChange={(e) => setSameDriverContinues(e.target.checked)}
-                              style={{
-                                width: '20px',
-                                height: '20px',
-                                cursor: 'pointer',
-                                accentColor: 'var(--race-yellow)'
-                              }}
-                            />
-                            <span style={{fontSize: '1rem', fontWeight: '600'}}>
-                              Check box if no driver change
-                            </span>
-                          </label>
-                          {sameDriverContinues && (
-                            <div style={{
-                              marginTop: '0.5rem',
-                              fontSize: '0.875rem',
-                              color: 'var(--race-yellow)'
+                          <div style={{display: 'flex', gap: '1rem', flexWrap: 'wrap'}}>
+                            <label style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.5rem',
+                              cursor: 'pointer',
+                              userSelect: 'none',
+                              flex: '1 1 auto'
                             }}>
-                              {drivers[currentDriverIndex]?.name} will continue for another stint
+                              <input 
+                                type="checkbox" 
+                                checked={sameDriverContinues}
+                                onChange={(e) => setSameDriverContinues(e.target.checked)}
+                                style={{
+                                  width: '20px',
+                                  height: '20px',
+                                  cursor: 'pointer',
+                                  accentColor: 'var(--race-yellow)',
+                                  flexShrink: 0
+                                }}
+                              />
+                              <span style={{fontSize: '0.9rem', fontWeight: '600'}}>
+                                Check box if no driver change
+                              </span>
+                            </label>
+                            
+                            <label style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.5rem',
+                              cursor: 'pointer',
+                              userSelect: 'none',
+                              flex: '1 1 auto'
+                            }}>
+                              <input 
+                                type="checkbox" 
+                                checked={noRefuel}
+                                onChange={(e) => setNoRefuel(e.target.checked)}
+                                style={{
+                                  width: '20px',
+                                  height: '20px',
+                                  cursor: 'pointer',
+                                  accentColor: 'var(--race-red)',
+                                  flexShrink: 0
+                                }}
+                              />
+                              <span style={{fontSize: '0.9rem', fontWeight: '600'}}>
+                                Check box if not refuelling
+                              </span>
+                            </label>
+                          </div>
+                          
+                          {(sameDriverContinues || noRefuel) && (
+                            <div style={{
+                              marginTop: '0.75rem',
+                              fontSize: '0.875rem',
+                              color: 'var(--race-yellow)',
+                              paddingTop: '0.75rem',
+                              borderTop: '1px solid var(--border)'
+                            }}>
+                              {sameDriverContinues && !noRefuel && `${drivers[currentDriverIndex]?.name} will continue for another stint`}
+                              {!sameDriverContinues && noRefuel && `${drivers[(currentDriverIndex + 1) % drivers.length]?.name} - stint timer will continue`}
+                              {sameDriverContinues && noRefuel && `${drivers[currentDriverIndex]?.name} - stint timer will continue (no refuel)`}
                             </div>
                           )}
                         </div>
@@ -2212,6 +2255,7 @@
                                 Stint: {formatTime(stop.stintDuration)} | Pit: {formatTime(stop.pitDuration || 0)}
                                 {stop.emergency && <span style={{color: 'var(--race-red)', marginLeft: '0.5rem', fontWeight: '700'}}>⚠ EMERGENCY</span>}
                                 {stop.doubleStint && <span style={{color: 'var(--race-yellow)', marginLeft: '0.5rem', fontWeight: '700'}}>↻ DOUBLE STINT</span>}
+                                {stop.noRefuel && <span style={{color: 'var(--race-red)', marginLeft: '0.5rem', fontWeight: '700'}}>🚫 NO REFUEL</span>}
                               </div>
                             </div>
                             <div style={{textAlign: 'right'}}>
