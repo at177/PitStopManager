@@ -1,0 +1,1309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#080808">
+  <title>Simple Race Timer App</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Barlow+Condensed:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+  /* ===== TOKENS ===== */
+  :root {
+    --bg:     #080808;
+    --surf:   #111111;
+    --surf2:  #191919;
+    --surf3:  #232323;
+    --red:    #e10600;
+    --teal:   #00d2be;
+    --yellow: #ffd700;
+    --orange: #ff8c00;
+    --white:  #f0f0f0;
+    --muted:  #555555;
+    --border: #272727;
+    --fd: 'Orbitron', monospace;
+    --fb: 'Barlow Condensed', sans-serif;
+  }
+
+  /* ===== RESET ===== */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--bg);
+    color: var(--white);
+    font-family: var(--fb);
+    height: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    min-height: 100vh;
+    max-width: 480px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    overscroll-behavior: none;
+  }
+
+  /* ===== HEADER ===== */
+  .app-header {
+    background: var(--surf);
+    border-bottom: 2px solid var(--red);
+    padding: 10px 14px 10px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .hdr-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .app-name {
+    font-family: var(--fd);
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 1.5px;
+    color: var(--white);
+    text-transform: uppercase;
+  }
+  .app-name .accent { color: var(--red); }
+
+  .app-version {
+    font-family: var(--fd);
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  /* Race clock — centered below app name, hidden until race starts */
+  .hdr-clock {
+    display: none;
+    text-align: center;
+    padding: 8px 0 4px;
+  }
+  .hdr-clock.show { display: block; }
+
+  .race-clock {
+    font-family: var(--fd);
+    font-size: 40px;
+    font-weight: 900;
+    letter-spacing: 4px;
+    color: var(--white);
+    line-height: 1;
+  }
+  .race-clock.paused-col { color: var(--orange); }
+
+  .clock-lbl {
+    font-size: 9px;
+    letter-spacing: 4px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-top: 3px;
+  }
+
+  /* Phase pill row — centered */
+  .hdr-pill {
+    display: none;
+    justify-content: center;
+    margin-top: 7px;
+  }
+  .hdr-pill.show { display: flex; }
+
+  .phase-pill {
+    font-family: var(--fb);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    padding: 3px 14px;
+    border-radius: 2px;
+  }
+  .phase-pill.setup   { background: var(--surf3); color: var(--muted);   border: 1px solid var(--border); }
+  .phase-pill.racing  { background: rgba(0,210,190,.12); color: var(--teal);   border: 1px solid var(--teal); }
+  .phase-pill.pitting { background: rgba(255,215,0,.12); color: var(--yellow); border: 1px solid var(--yellow); animation: blink 1.1s ease-in-out infinite; }
+  .phase-pill.paused  { background: rgba(255,140,0,.15); color: var(--orange); border: 1px solid var(--orange); animation: blink 0.7s ease-in-out infinite; }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.45} }
+
+  .icon-btn {
+    background: var(--surf2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    width: 36px; height: 36px;
+    border-radius: 3px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .icon-btn:active { background: var(--surf3); }
+
+  /* ===== STRIPE ===== */
+  .stripe {
+    height: 4px;
+    flex-shrink: 0;
+    background-image: repeating-linear-gradient(90deg,
+      rgba(255,255,255,.1) 0, rgba(255,255,255,.1) 5px,
+      transparent 5px, transparent 10px);
+  }
+
+  /* ===== SCREENS ===== */
+  .screen {
+    display: none;
+    flex-direction: column;
+    flex: 1;
+    padding: 14px 14px 30px;
+    gap: 11px;
+    overflow-y: auto;
+  }
+  .screen.active { display: flex; }
+
+  /* ===== CARDS ===== */
+  .card {
+    background: var(--surf);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 13px 16px;
+    position: relative;
+    overflow: hidden;
+    text-align: center;
+  }
+
+  /* Left accent bar */
+  .card::after {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--muted);
+  }
+  .card.c-red::after    { background: var(--red); }
+  .card.c-teal::after   { background: var(--teal); }
+  .card.c-yellow::after { background: var(--yellow); }
+  .card.c-orange::after { background: var(--orange); }
+  .card.c-muted::after  { background: var(--muted); }
+
+  /* Tinted backgrounds */
+  .card.bg-yellow { background: rgba(255,215,0,.07);  border-color: rgba(255,215,0,.28); }
+  .card.bg-orange { background: rgba(255,140,0,.07);  border-color: rgba(255,140,0,.28); }
+
+  .card-label {
+    font-family: var(--fb);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 7px;
+  }
+
+  .card-value {
+    font-family: var(--fd);
+    font-weight: 900;
+    letter-spacing: 2px;
+    line-height: 1;
+    color: var(--white);
+  }
+  .card-value.xl { font-size: 54px; }
+  .card-value.lg { font-size: 38px; }
+  .card-value.md { font-size: 26px; }
+  .card-value.sm { font-size: 19px; }
+
+  .card-sub {
+    font-size: 11px;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-top: 5px;
+  }
+
+  /* Stat pair — two equal cards side by side */
+  .stat-pair { display: flex; gap: 10px; }
+  .stat-pair .card { flex: 1; }
+
+  /* Progress bar */
+  .bar-track {
+    height: 6px;
+    background: var(--border);
+    border-radius: 1px;
+    margin-top: 10px;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 1px;
+    transition: width .85s linear, background .45s;
+  }
+
+  /* Colour helpers */
+  .col-teal   { color: var(--teal)   !important; }
+  .col-yellow { color: var(--yellow) !important; }
+  .col-orange { color: var(--orange) !important; }
+  .col-red    { color: var(--red)    !important; }
+
+  /* ===== BUTTONS ===== */
+  .btn {
+    display: block;
+    width: 100%;
+    padding: 17px 16px;
+    border: none;
+    border-radius: 3px;
+    font-family: var(--fd);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    text-align: center;
+    transition: filter .12s, transform .1s;
+    -webkit-appearance: none;
+  }
+  .btn:active:not(:disabled) { transform: scale(.975); filter: brightness(.82); }
+  .btn:disabled { opacity: .32; cursor: not-allowed; }
+
+  .btn .sub {
+    display: block;
+    font-family: var(--fb);
+    font-size: 10px;
+    letter-spacing: 1px;
+    font-weight: 400;
+    margin-top: 3px;
+    opacity: .7;
+  }
+
+  .btn-red     { background: var(--red);    color: #fff; }
+  .btn-teal    { background: var(--teal);   color: #000; }
+  .btn-orange  { background: var(--orange); color: #000; }
+  .btn-or-red  { background: transparent;  color: var(--red);  border: 2px solid var(--red); }
+  .btn-ghost   { background: var(--surf2); color: var(--muted); border: 1px solid var(--border); padding: 13px; font-size: 11px; }
+  .btn-dim     { background: var(--surf3); color: var(--white); border: 1px solid var(--border); }
+
+  /* Exit-ready pulse */
+  .btn-teal.exit-ready { animation: teal-pulse .85s ease-in-out infinite; }
+  @keyframes teal-pulse {
+    0%,100% { background: var(--teal); }
+    50%      { background: rgba(0,210,190,.55); }
+  }
+
+  /* Small button row */
+  .btn-row { display: flex; gap: 10px; }
+  .btn-row .btn { flex: 1; }
+
+  /* ===== SETUP ===== */
+  .setup-hero { text-align: center; padding: 4px 0 2px; }
+  .setup-title {
+    font-family: var(--fd);
+    font-size: 17px;
+    font-weight: 900;
+    letter-spacing: 2px;
+  }
+  .setup-sub { font-size: 12px; letter-spacing: 1px; color: var(--muted); margin-top: 4px; }
+
+  .section-lbl {
+    font-size: 10px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
+    color: var(--muted); display: flex; align-items: center; gap: 8px;
+  }
+  .section-lbl::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  .setting-row {
+    background: var(--surf); border: 1px solid var(--border); border-radius: 3px;
+    padding: 12px 14px; display: flex; align-items: center; gap: 10px;
+  }
+  .s-lbl { flex: 1; }
+  .s-name { font-size: 14px; font-weight: 700; letter-spacing: 1px; }
+  .s-hint { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .s-ctrl { display: flex; align-items: center; gap: 8px; }
+
+  .stepper {
+    width: 36px; height: 36px; background: var(--surf3); border: 1px solid var(--border);
+    color: var(--white); border-radius: 3px; font-size: 20px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .stepper:active { background: var(--red); border-color: var(--red); }
+
+  .sval {
+    font-family: var(--fd); font-size: 20px; font-weight: 700;
+    min-width: 44px; text-align: center; background: var(--bg);
+    border: 1px solid var(--border); border-radius: 3px; padding: 6px 4px;
+  }
+  .sunit { font-size: 11px; letter-spacing: 1px; color: var(--muted); font-weight: 600; min-width: 28px; }
+
+  /* ===== BANNERS ===== */
+  .banner {
+    border-radius: 3px; text-align: center; padding: 11px 12px;
+    font-family: var(--fb); font-size: 12px; font-weight: 800;
+    letter-spacing: 3px; text-transform: uppercase; display: none;
+  }
+  .banner.show { display: block; }
+
+  .ban-pause {
+    background: rgba(255,140,0,.13); border: 1px solid rgba(255,140,0,.35);
+    color: var(--orange); animation: blink .75s ease-in-out infinite;
+  }
+  .ban-fuel {
+    background: rgba(225,6,0,.13); border: 1px solid rgba(225,6,0,.35);
+    color: var(--red); animation: blink .55s ease-in-out infinite;
+  }
+
+  /* ===== PIT STATUS BAR ===== */
+  .pit-status {
+    border-radius: 3px; text-align: center; padding: 9px 12px; margin-top: 9px;
+    font-family: var(--fb); font-size: 11px; font-weight: 800;
+    letter-spacing: 2.5px; text-transform: uppercase;
+  }
+  .pit-status.hold  { background: rgba(255,140,0,.1); color: var(--orange); border: 1px solid rgba(255,140,0,.3); }
+  .pit-status.ready { background: rgba(0,210,190,.1); color: var(--teal);   border: 1px solid rgba(0,210,190,.3); animation: blink .85s ease-in-out infinite; }
+
+  /* ===== NO-REFUEL TOGGLE ===== */
+  .no-refuel-btn {
+    width: 100%; padding: 13px 16px; border-radius: 3px;
+    font-family: var(--fb); font-size: 13px; font-weight: 700;
+    letter-spacing: 2px; text-transform: uppercase; cursor: pointer; text-align: center;
+    border: 2px dashed var(--border); background: var(--surf2); color: var(--muted);
+    transition: all .15s;
+  }
+  .no-refuel-btn.active {
+    border-color: var(--orange); border-style: solid;
+    background: rgba(255,140,0,.1); color: var(--orange);
+  }
+  .no-refuel-btn:active { filter: brightness(.82); }
+
+  /* ===== PIT HISTORY ===== */
+  .h-list { display: flex; flex-direction: column; }
+  .h-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 0; border-bottom: 1px solid var(--border); text-align: left;
+  }
+  .h-item:last-child { border-bottom: none; }
+  .h-stop { font-family: var(--fd); font-size: 11px; font-weight: 700; letter-spacing: 1px; }
+  .h-meta { font-size: 10px; color: var(--muted); letter-spacing: .5px; margin-top: 2px; }
+  .h-dur  { font-family: var(--fd); font-size: 13px; color: var(--teal); letter-spacing: 1px; }
+  .h-nr   { font-size: 10px; color: var(--orange); letter-spacing: 1px; margin-top: 1px; }
+  .h-empty { text-align: center; color: var(--muted); font-size: 12px; letter-spacing: 1px; padding: 10px 0; }
+
+  /* ===== MODALS ===== */
+  .overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.9);
+    z-index: 200; align-items: center; justify-content: center; padding: 20px;
+  }
+  .overlay.show { display: flex; }
+
+  .modal {
+    background: var(--surf); border: 1px solid var(--border);
+    border-top: 3px solid var(--red); border-radius: 4px;
+    padding: 22px 20px; width: 100%; max-width: 380px;
+    animation: m-in .18s ease;
+  }
+  @keyframes m-in {
+    from { transform: scale(.93) translateY(10px); opacity:0; }
+    to   { transform: scale(1)   translateY(0);    opacity:1; }
+  }
+  .modal.bt-teal { border-top-color: var(--teal); }
+
+  .modal-title {
+    font-family: var(--fd); font-size: 13px; font-weight: 900;
+    letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px;
+  }
+  .modal-body { font-size: 13px; color: #999; line-height: 1.55; margin-bottom: 20px; letter-spacing: .3px; }
+  .modal-btns { display: flex; gap: 10px; }
+  .modal-btns .btn { flex: 1; padding: 13px; font-size: 11px; }
+
+  .m-setting {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+  }
+  .m-setting:last-child { border-bottom: none; }
+  .m-sname { font-size: 13px; font-weight: 600; letter-spacing: 1px; }
+  .m-shint { font-size: 11px; color: var(--muted); margin-top: 1px; }
+
+  /* ===== SHARE ===== */
+  #qrWrap { display: flex; justify-content: center; margin: 12px 0 10px; }
+  #qrWrap canvas, #qrWrap img { border: 6px solid #fff; border-radius: 3px; display: block; }
+  .share-url {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 3px;
+    padding: 7px 10px; font-size: 9px; color: var(--muted);
+    word-break: break-all; letter-spacing: .4px; margin-bottom: 12px; line-height: 1.4;
+  }
+
+  /* ===== READ-ONLY BANNER ===== */
+  .ro-banner {
+    background: var(--yellow); color: #000; text-align: center;
+    padding: 7px; font-family: var(--fb); font-size: 11px;
+    font-weight: 800; letter-spacing: 2px; flex-shrink: 0; display: none;
+  }
+
+  /* ===== ANIMATIONS ===== */
+  @keyframes flash { 0%,100%{opacity:1} 50%{opacity:.15} }
+  .flashing { animation: flash .5s ease-in-out infinite; }
+
+  .spacer { flex: 1; min-height: 8px; }
+  input[type=number] { -moz-appearance: textfield; }
+  input::-webkit-inner-spin-button, input::-webkit-outer-spin-button { -webkit-appearance: none; }
+  </style>
+</head>
+<body>
+
+<!-- ========== READ-ONLY BANNER ========== -->
+<div id="roBanner" class="ro-banner">📡 STATUS SNAPSHOT — Scan manager's QR for live updates</div>
+
+<!-- ========== HEADER ========== -->
+<header class="app-header">
+  <div class="hdr-top">
+    <div>
+      <div class="app-name">Simple <span class="accent">Race</span> Timer App</div>
+      <div class="app-version" id="versionEl">v1.1</div>
+    </div>
+    <button class="icon-btn" id="settingsBtn" onclick="openSettings()" title="Settings">⚙</button>
+  </div>
+
+  <!-- Race clock — hidden until START RACE, centered below title -->
+  <div class="hdr-clock" id="hdrClock">
+    <div class="race-clock" id="raceClock">00:00:00</div>
+    <div class="clock-lbl">Race Time</div>
+  </div>
+
+  <!-- Phase pill — centered, hidden in SETUP -->
+  <div class="hdr-pill" id="hdrPill">
+    <span class="phase-pill setup" id="phasePill">SETUP</span>
+  </div>
+</header>
+
+<div class="stripe"></div>
+
+<!-- ============================================================
+     SETUP SCREEN
+============================================================ -->
+<div class="screen active" id="screenSetup">
+
+  <div class="setup-hero">
+    <div class="setup-title">Race Configuration</div>
+    <div class="setup-sub">Set parameters, then wait for lights out</div>
+  </div>
+
+  <div class="section-lbl">Parameters</div>
+
+  <div class="setting-row">
+    <div class="s-lbl">
+      <div class="s-name">⛽ Fuel Range</div>
+      <div class="s-hint">Expected kart fuel duration</div>
+    </div>
+    <div class="s-ctrl">
+      <button class="stepper" onclick="adjSetup('fuel',-5)">−</button>
+      <div class="sval" id="setupFuel">120</div>
+      <button class="stepper" onclick="adjSetup('fuel',+5)">+</button>
+      <div class="sunit">MINS</div>
+    </div>
+  </div>
+
+  <div class="setting-row">
+    <div class="s-lbl">
+      <div class="s-name">⏱ Min Pit Stop Time</div>
+      <div class="s-hint">Mandatory minimum stop duration</div>
+    </div>
+    <div class="s-ctrl">
+      <button class="stepper" onclick="adjSetup('minPit',-1)">−</button>
+      <div class="sval" id="setupMinPit">3</div>
+      <button class="stepper" onclick="adjSetup('minPit',+1)">+</button>
+      <div class="sunit">MINS</div>
+    </div>
+  </div>
+
+  <div class="spacer"></div>
+  <div class="section-lbl">Ready</div>
+
+  <button class="btn btn-red"
+    onclick="confirmDo('startRace','Start Race?','The race clock and fuel timer start immediately. Press this when the lights go green.')">
+    🏁 &nbsp;LIGHTS OUT — START RACE
+    <span class="sub">Press when lights go green</span>
+  </button>
+
+</div>
+
+<!-- ============================================================
+     RACING SCREEN
+============================================================ -->
+<div class="screen" id="screenRacing">
+
+  <!-- Banners -->
+  <div class="banner ban-pause" id="rPauseBanner">⏸ &nbsp;RACE PAUSED</div>
+  <div class="banner ban-fuel"  id="fuelWarnBanner">⚠ &nbsp;PIT NOW — FUEL CRITICAL</div>
+
+  <!-- Fuel countdown (main display) -->
+  <div class="card c-teal" id="fuelCard">
+    <div class="card-label">⛽ Fuel Remaining</div>
+    <div class="card-value xl" id="fuelValue">2:00:00</div>
+    <div class="card-sub"      id="fuelSub">Range: 120 mins</div>
+    <div class="bar-track">
+      <div class="bar-fill" id="fuelBar" style="width:100%;background:var(--teal)"></div>
+    </div>
+  </div>
+
+  <!-- Stint time + stint number -->
+  <div class="stat-pair">
+    <div class="card c-teal">
+      <div class="card-label">🏎 Stint Time</div>
+      <div class="card-value md" id="stintTime">00:00:00</div>
+    </div>
+    <div class="card c-muted">
+      <div class="card-label">Stint #</div>
+      <div class="card-value lg col-teal" id="stintNumDisp">1</div>
+      <div class="card-sub">
+        <span id="pitCntDisp">0</span> stop<span id="pitPlural">s</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pit history (collapsible) -->
+  <div class="card c-muted" id="historyCard" style="display:none">
+    <div class="card-label" style="text-align:left">📋 Pit Stop History</div>
+    <div class="h-list" id="historyList"></div>
+  </div>
+
+  <!-- PIT ENTRY — primary action, hidden when paused -->
+  <button class="btn btn-red" id="pitEntryBtn" onclick="doPitEntry()">
+    🔴 &nbsp;PIT ENTRY
+    <span class="sub">Press as kart crosses pit entry line</span>
+  </button>
+
+  <!-- RESUME — shown only when paused -->
+  <button class="btn btn-orange" id="resumeRacingBtn" style="display:none" onclick="doResume()">
+    ▶ &nbsp;RESUME RACE
+    <span class="sub">Red flag or pause cleared — press to continue</span>
+  </button>
+
+  <!-- Secondary row -->
+  <div class="btn-row">
+    <button class="btn btn-ghost" id="pauseRacingBtn" onclick="doPause()">⏸ PAUSE</button>
+    <button class="btn btn-ghost" onclick="openShare()">📤 SHARE</button>
+    <button class="btn btn-ghost" onclick="toggleHistory()">📋 HISTORY</button>
+  </div>
+
+</div>
+
+<!-- ============================================================
+     PITTING SCREEN
+============================================================ -->
+<div class="screen" id="screenPitting">
+
+  <!-- Pause banner -->
+  <div class="banner ban-pause" id="pPauseBanner">⏸ &nbsp;RACE PAUSED</div>
+
+  <!-- Pit elapsed -->
+  <div class="card c-yellow bg-yellow">
+    <div class="card-label col-yellow">🛑 Time In Pits — Stop #<span id="stopNumDisp">1</span></div>
+    <div class="card-value xl" id="pitElapsed">0:00</div>
+  </div>
+
+  <!-- Min pit countdown -->
+  <div class="card c-orange bg-orange">
+    <div class="card-label">⏱ Min Stop Time Remaining</div>
+    <div class="card-value lg" id="minPitCD">3:00</div>
+    <div class="bar-track">
+      <div class="bar-fill" id="minPitBar" style="width:100%;background:var(--orange)"></div>
+    </div>
+    <div class="pit-status hold" id="pitStatusBar">HOLD — Minimum time not yet reached</div>
+  </div>
+
+  <!-- No-refuel toggle -->
+  <button class="no-refuel-btn" id="noRefuelBtn" onclick="toggleNoRefuel()">
+    🔁 &nbsp;NO REFUEL STOP — Tap to activate
+  </button>
+
+  <!-- PIT EXIT — disabled until min time met; hidden when paused -->
+  <button class="btn btn-teal" id="pitExitBtn" disabled onclick="doPitExit()">
+    🟢 &nbsp;PIT EXIT
+    <span class="sub" id="pitExitSub">Waiting for minimum time...</span>
+  </button>
+
+  <!-- RESUME — shown only when paused -->
+  <button class="btn btn-orange" id="resumePitBtn" style="display:none" onclick="doResume()">
+    ▶ &nbsp;RESUME
+    <span class="sub">Clear pause / red flag</span>
+  </button>
+
+  <!-- Abort — always available, no confirmation required -->
+  <button class="btn btn-or-red" onclick="doAbortPit()">
+    ✕ &nbsp;Abort Pit Entry
+  </button>
+
+  <!-- Secondary row -->
+  <div class="btn-row">
+    <button class="btn btn-ghost" id="pausePitBtn" onclick="doPause()">⏸ PAUSE</button>
+    <button class="btn btn-ghost" onclick="openShare()">📤 SHARE</button>
+  </div>
+
+</div>
+
+<!-- ============================================================
+     READ-ONLY SCREEN
+============================================================ -->
+<div class="screen" id="screenRO">
+
+  <div class="card c-teal">
+    <div class="card-label">Status</div>
+    <div class="card-value md" id="roPhase">—</div>
+  </div>
+
+  <div class="stat-pair">
+    <div class="card c-muted">
+      <div class="card-label">Race Time</div>
+      <div class="card-value sm" id="roRaceTime">—</div>
+    </div>
+    <div class="card c-muted">
+      <div class="card-label">Stint #</div>
+      <div class="card-value sm" id="roStint">—</div>
+    </div>
+  </div>
+
+  <div class="card c-teal">
+    <div class="card-label">⛽ Fuel at Snapshot</div>
+    <div class="card-value md" id="roFuel">—</div>
+    <div class="bar-track"><div class="bar-fill" id="roFuelBar"></div></div>
+  </div>
+
+  <div class="stat-pair">
+    <div class="card c-muted">
+      <div class="card-label">Pit Stops</div>
+      <div class="card-value sm" id="roPits">—</div>
+    </div>
+    <div class="card c-muted">
+      <div class="card-label">Snapshot At</div>
+      <div class="card-value sm" id="roSnap" style="font-size:16px">—</div>
+    </div>
+  </div>
+
+  <div style="text-align:center;color:var(--muted);font-size:12px;letter-spacing:1px;line-height:1.7;padding:4px 0">
+    This is a static snapshot.<br>Scan the team manager's QR code for the latest update.
+  </div>
+
+</div>
+
+<!-- ============================================================
+     CONFIRM MODAL  (start race + reset only)
+============================================================ -->
+<div class="overlay" id="overlayConfirm">
+  <div class="modal">
+    <div class="modal-title" id="cTitle">Confirm</div>
+    <div class="modal-body"  id="cBody"></div>
+    <div class="modal-btns">
+      <button class="btn btn-dim" onclick="closeConfirm()">CANCEL</button>
+      <button class="btn btn-red" id="cOkBtn" onclick="execAction()">CONFIRM</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SETTINGS MODAL
+============================================================ -->
+<div class="overlay" id="overlaySettings">
+  <div class="modal">
+    <div class="modal-title">⚙ Settings</div>
+    <div class="modal-body" style="margin-bottom:12px;font-size:13px">Adjust race parameters mid-race.</div>
+
+    <div class="m-setting">
+      <div>
+        <div class="m-sname">⛽ Fuel Range</div>
+        <div class="m-shint">Expected kart range</div>
+      </div>
+      <div class="s-ctrl">
+        <button class="stepper" onclick="adjModal('fuel',-5)">−</button>
+        <div class="sval" id="mFuel">120</div>
+        <button class="stepper" onclick="adjModal('fuel',+5)">+</button>
+        <div class="sunit">MINS</div>
+      </div>
+    </div>
+
+    <div class="m-setting">
+      <div>
+        <div class="m-sname">⏱ Min Pit Stop</div>
+        <div class="m-shint">Mandatory minimum stop</div>
+      </div>
+      <div class="s-ctrl">
+        <button class="stepper" onclick="adjModal('minPit',-1)">−</button>
+        <div class="sval" id="mMinPit">3</div>
+        <button class="stepper" onclick="adjModal('minPit',+1)">+</button>
+        <div class="sunit">MINS</div>
+      </div>
+    </div>
+
+    <div class="modal-btns" style="margin-top:18px">
+      <button class="btn btn-dim" onclick="closeSettings()">CANCEL</button>
+      <button class="btn btn-red" onclick="saveSettings()">SAVE</button>
+    </div>
+
+    <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px">
+      <button class="btn btn-or-red" style="font-size:10px;padding:12px;letter-spacing:2px"
+        onclick="closeSettings();confirmDo('resetRace','Reset Race?','ALL race data will be cleared and the app returns to setup. This cannot be undone.')">
+        ⚠ RESET / END RACE
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SHARE MODAL
+============================================================ -->
+<div class="overlay" id="overlayShare">
+  <div class="modal bt-teal">
+    <div class="modal-title col-teal">📤 Share Race Status</div>
+    <div class="modal-body" style="font-size:12px;margin-bottom:8px">
+      Scan on another phone for a status snapshot. Re-share for the latest update.
+    </div>
+    <div id="qrWrap"></div>
+    <div class="share-url" id="shareUrl">—</div>
+    <div class="modal-btns">
+      <button class="btn btn-dim"   onclick="closeShare()">CLOSE</button>
+      <button class="btn btn-ghost" id="copyBtn" onclick="copyUrl()" style="flex:1">📋 Copy Link</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ============================================================
+     JAVASCRIPT
+============================================================ -->
+<script>
+'use strict';
+
+const VER      = 'v1.1';
+const SAVE_KEY = 'srta_v11';
+
+/* ============================================================
+   STATE
+   All timestamps are ms since epoch and are adjusted on resume
+   so that (now - timestamp) always gives correct elapsed time.
+============================================================ */
+let S = {
+  phase:        'SETUP',
+  settings:     { fuelMins: 120, minPitMins: 3 },
+  raceStart:    null,    // ms — start of race (adjusted for pauses)
+  stintStart:   null,    // ms — start of current stint (adjusted)
+  pitEntry:     null,    // ms — when kart entered pits (adjusted)
+  stintNum:     1,
+  pitStops:     [],      // { num, stintNum, entry, exit, durationMs, noRefuel }
+  prePitFuelMs: null,    // fuel remaining at pit entry (for no-refuel carry-over)
+  pausedAt:     null,    // ms — non-null while paused
+  noRefuelStop: false,   // true = fuel/stint timer carries over on pit exit
+};
+
+// Modal scratch
+let _mFuel = 120, _mMinPit = 3;
+// Setup scratch
+let _sFuel = 120, _sMinPit = 3;
+
+let _pendingAction = null;
+let _historyOpen   = false;
+let _autoSaveTick  = 0;
+
+/* ============================================================
+   BOOT
+============================================================ */
+document.addEventListener('DOMContentLoaded', () => {
+  el('versionEl').textContent = VER;
+
+  // Read-only snapshot view?
+  if (window.location.hash.startsWith('#view=')) {
+    loadRO(window.location.hash.slice(6));
+    return;
+  }
+
+  // Restore persisted state
+  try {
+    const saved = localStorage.getItem(SAVE_KEY);
+    if (saved) S = JSON.parse(saved);
+  } catch(_) {}
+
+  _sFuel   = S.settings.fuelMins;
+  _sMinPit = S.settings.minPitMins;
+
+  renderAll();
+  setInterval(tick, 250);
+});
+
+/* ============================================================
+   TICK  (every 250 ms)
+============================================================ */
+function tick() {
+  if (S.phase === 'SETUP' || S.pausedAt !== null) return;
+
+  // Autosave every ~5 s
+  if ((++_autoSaveTick % 20) === 0) save();
+
+  updateTimers(Date.now());
+}
+
+/* ============================================================
+   UPDATE TIMERS
+   Accepts a timestamp so it can display frozen values when paused.
+============================================================ */
+function updateTimers(now) {
+
+  // Race clock
+  if (S.raceStart) el('raceClock').textContent = hms(now - S.raceStart);
+
+  // ---- RACING ----
+  if (S.phase === 'RACING') {
+    const fuelRange = S.settings.fuelMins * 60000;
+    const stintMs   = S.stintStart ? now - S.stintStart : 0;
+    const fuelLeft  = Math.max(0, fuelRange - stintMs);
+    const pct       = fuelRange > 0 ? fuelLeft / fuelRange : 0;
+
+    el('fuelValue').textContent = hms(fuelLeft);
+    el('stintTime').textContent = hms(stintMs);
+    el('fuelBar').style.width   = pct100(pct);
+    el('fuelSub').textContent   = `Range: ${S.settings.fuelMins} mins`;
+
+    const fc = el('fuelCard'), fb = el('fuelBar'),
+          fv = el('fuelValue'), fw = el('fuelWarnBanner');
+
+    if (pct > 0.25) {
+      applyFuel(fc, fb, fv, fw, 'c-teal',   'var(--teal)',   false, false);
+    } else if (pct > 0.12) {
+      applyFuel(fc, fb, fv, fw, 'c-yellow', 'var(--yellow)', false, false);
+    } else if (pct > 0.05) {
+      applyFuel(fc, fb, fv, fw, 'c-orange', 'var(--orange)', false, false);
+    } else {
+      applyFuel(fc, fb, fv, fw, 'c-red',    'var(--red)',    true,  true);
+    }
+  }
+
+  // ---- PITTING ----
+  if (S.phase === 'PITTING') {
+    const pitMs = S.pitEntry ? now - S.pitEntry : 0;
+    const minMs = S.settings.minPitMins * 60000;
+    const rem   = Math.max(0, minMs - pitMs);
+    const pct   = minMs > 0 ? rem / minMs : 0;
+
+    el('pitElapsed').textContent = mss(pitMs);
+    el('minPitCD').textContent   = mss(rem);
+    el('minPitBar').style.width  = pct100(pct);
+
+    const exitBtn = el('pitExitBtn');
+    const sBar    = el('pitStatusBar');
+    const mBar    = el('minPitBar');
+
+    if (rem <= 0) {
+      exitBtn.disabled = false;
+      exitBtn.classList.add('exit-ready');
+      el('pitExitSub').textContent = 'Ready — cross pit exit line now';
+      sBar.className  = 'pit-status ready';
+      sBar.textContent= '✅ READY — Pit exit clear';
+      mBar.style.background = 'var(--teal)';
+    } else {
+      exitBtn.disabled = true;
+      exitBtn.classList.remove('exit-ready');
+      el('pitExitSub').textContent = 'Waiting for minimum time...';
+      sBar.className  = 'pit-status hold';
+      sBar.textContent= 'HOLD — Minimum time not yet reached';
+      mBar.style.background = 'var(--orange)';
+    }
+  }
+}
+
+function applyFuel(card, bar, val, warn, cls, colour, flash, showWarn) {
+  card.className = 'card ' + cls;
+  bar.style.background = colour;
+  val.style.color = colour;
+  flash ? val.classList.add('flashing') : val.classList.remove('flashing');
+  showWarn ? warn.classList.add('show') : warn.classList.remove('show');
+}
+
+/* ============================================================
+   RENDER ALL
+============================================================ */
+function renderAll() {
+  const p      = S.phase;
+  const paused = S.pausedAt !== null;
+
+  // Screens
+  ['screenSetup','screenRacing','screenPitting','screenRO'].forEach(id =>
+    el(id).classList.remove('active'));
+  const map = { SETUP:'screenSetup', RACING:'screenRacing', PITTING:'screenPitting' };
+  if (map[p]) el(map[p]).classList.add('active');
+
+  // Header clock + pill visibility
+  const showHdr = p !== 'SETUP';
+  el('hdrClock').classList.toggle('show', showHdr);
+  el('hdrPill').classList.toggle('show', showHdr);
+
+  // Phase pill text + colour
+  const pill = el('phasePill');
+  if (paused) {
+    pill.textContent = 'PAUSED';
+    pill.className   = 'phase-pill paused';
+    el('raceClock').classList.add('paused-col');
+  } else {
+    pill.textContent = p;
+    pill.className   = 'phase-pill ' + p.toLowerCase();
+    el('raceClock').classList.remove('paused-col');
+  }
+
+  // Setup screen values
+  el('setupFuel').textContent   = _sFuel;
+  el('setupMinPit').textContent = _sMinPit;
+
+  // Racing screen
+  if (p === 'RACING') {
+    const cnt = S.pitStops.length;
+    el('stintNumDisp').textContent = S.stintNum;
+    el('pitCntDisp').textContent   = cnt;
+    el('pitPlural').textContent    = cnt === 1 ? '' : 's';
+
+    vis('rPauseBanner',   paused);
+    vis('pitEntryBtn',    !paused);
+    vis('resumeRacingBtn', paused);
+    vis('pauseRacingBtn', !paused);
+
+    // Clear fuel warn (tick will re-assert if needed)
+    if (!paused) el('fuelWarnBanner').classList.remove('show');
+
+    renderHistory();
+  }
+
+  // Pitting screen
+  if (p === 'PITTING') {
+    el('stopNumDisp').textContent = S.pitStops.length + 1;
+    vis('pPauseBanner',  paused);
+    vis('pitExitBtn',    !paused);
+    vis('resumePitBtn',  paused);
+    vis('pausePitBtn',   !paused);
+    renderNoRefuelBtn();
+  }
+
+  // Immediate timer display (frozen to pausedAt if paused)
+  if (p !== 'SETUP') updateTimers(paused ? S.pausedAt : Date.now());
+}
+
+function renderHistory() {
+  const list = el('historyList');
+  if (!list) return;
+  list.innerHTML = '';
+  if (!S.pitStops.length) {
+    list.innerHTML = '<div class="h-empty">No pit stops recorded yet</div>';
+    return;
+  }
+  [...S.pitStops].reverse().forEach(stop => {
+    const d = document.createElement('div');
+    d.className = 'h-item';
+    d.innerHTML = `
+      <div>
+        <div class="h-stop">STOP #${stop.num}</div>
+        <div class="h-meta">Stint ${stop.stintNum}${stop.noRefuel ? ' · No refuel' : ''}</div>
+      </div>
+      <div style="text-align:right">
+        <div class="h-dur">${mss(stop.durationMs)}</div>
+        ${stop.noRefuel ? '<div class="h-nr">NO REFUEL</div>' : ''}
+      </div>`;
+    list.appendChild(d);
+  });
+}
+
+function renderNoRefuelBtn() {
+  const b = el('noRefuelBtn');
+  if (S.noRefuelStop) {
+    b.className   = 'no-refuel-btn active';
+    b.textContent = '🔁  NO REFUEL STOP — Active (fuel timer carries over)';
+  } else {
+    b.className   = 'no-refuel-btn';
+    b.textContent = '🔁  NO REFUEL STOP — Tap to activate';
+  }
+}
+
+/* ============================================================
+   STATE TRANSITIONS
+============================================================ */
+
+// Race starts the moment the lights go green
+function doStartRace() {
+  S.settings.fuelMins   = _sFuel;
+  S.settings.minPitMins = _sMinPit;
+  const now = Date.now();
+  Object.assign(S, {
+    phase: 'RACING', raceStart: now, stintStart: now,
+    stintNum: 1, pitStops: [], prePitFuelMs: null,
+    pausedAt: null, noRefuelStop: false,
+  });
+  save(); renderAll();
+}
+
+// Kart crosses pit entry line
+function doPitEntry() {
+  const now     = Date.now();
+  const range   = S.settings.fuelMins * 60000;
+  const stintMs = S.stintStart ? now - S.stintStart : 0;
+  S.prePitFuelMs = Math.max(0, range - stintMs);
+  S.phase        = 'PITTING';
+  S.pitEntry     = now;
+  S.noRefuelStop = false;
+  save(); renderAll();
+}
+
+// Kart crosses pit exit line
+function doPitExit() {
+  const now = Date.now();
+  const dur = S.pitEntry ? now - S.pitEntry : 0;
+
+  S.pitStops.push({
+    num:        S.pitStops.length + 1,
+    stintNum:   S.stintNum,
+    entry:      S.pitEntry,
+    exit:       now,
+    durationMs: dur,
+    noRefuel:   S.noRefuelStop,
+  });
+
+  if (S.noRefuelStop) {
+    // Fuel & stint timer carry over — shift stintStart so the elapsed
+    // fuel time picks up exactly from where it was at pit entry
+    const fuelUsed = S.settings.fuelMins * 60000 - (S.prePitFuelMs || 0);
+    S.stintStart   = now - fuelUsed;
+    // stintNum NOT incremented: no new fuel → no new stint counter
+  } else {
+    S.stintNum++;
+    S.stintStart = now;   // fresh start, full fuel
+  }
+
+  S.phase        = 'RACING';
+  S.pitEntry     = null;
+  S.prePitFuelMs = null;
+  S.noRefuelStop = false;
+  save(); renderAll();
+}
+
+// Abort pit entry — returns to racing as if it never happened
+function doAbortPit() {
+  S.phase        = 'RACING';
+  S.pitEntry     = null;
+  S.prePitFuelMs = null;
+  S.noRefuelStop = false;
+  save(); renderAll();
+}
+
+// Pause — red flag, safety car, etc.
+function doPause() {
+  S.pausedAt = Date.now();
+  save(); renderAll();
+}
+
+// Resume — shift all timestamps forward by the pause duration so
+// (now - timestamp) keeps giving the correct elapsed time
+function doResume() {
+  const dur = Date.now() - S.pausedAt;
+  if (S.raceStart)  S.raceStart  += dur;
+  if (S.stintStart) S.stintStart += dur;
+  if (S.pitEntry)   S.pitEntry   += dur;
+  S.pausedAt = null;
+  save(); renderAll();
+}
+
+function doResetRace() {
+  S = {
+    phase: 'SETUP', settings: { ...S.settings },
+    raceStart: null, stintStart: null, pitEntry: null,
+    stintNum: 1, pitStops: [], prePitFuelMs: null,
+    pausedAt: null, noRefuelStop: false,
+  };
+  _historyOpen = false;
+  save(); renderAll();
+}
+
+function toggleNoRefuel() {
+  S.noRefuelStop = !S.noRefuelStop;
+  renderNoRefuelBtn();
+}
+
+function toggleHistory() {
+  _historyOpen = !_historyOpen;
+  el('historyCard').style.display = _historyOpen ? 'block' : 'none';
+  if (_historyOpen) renderHistory();
+}
+
+/* ============================================================
+   CONFIRM MODAL — used only for Start Race and Reset Race
+============================================================ */
+function confirmDo(action, title, body) {
+  _pendingAction = action;
+  el('cTitle').textContent = title;
+  el('cBody').textContent  = body;
+  el('cOkBtn').className   = action === 'resetRace' ? 'btn btn-or-red' : 'btn btn-red';
+  el('overlayConfirm').classList.add('show');
+}
+
+function closeConfirm() {
+  el('overlayConfirm').classList.remove('show');
+  _pendingAction = null;
+}
+
+function execAction() {
+  const a = _pendingAction;
+  closeConfirm();
+  if (a === 'startRace') doStartRace();
+  if (a === 'resetRace') doResetRace();
+}
+
+/* ============================================================
+   SETTINGS MODAL
+============================================================ */
+function openSettings() {
+  _mFuel   = S.settings.fuelMins;
+  _mMinPit = S.settings.minPitMins;
+  el('mFuel').textContent   = _mFuel;
+  el('mMinPit').textContent = _mMinPit;
+  el('overlaySettings').classList.add('show');
+}
+function closeSettings() { el('overlaySettings').classList.remove('show'); }
+
+function adjModal(type, d) {
+  if (type === 'fuel')  { _mFuel   = clamp(_mFuel   + d, 10, 360); el('mFuel').textContent   = _mFuel;   }
+  else                  { _mMinPit = clamp(_mMinPit  + d,  1,  30); el('mMinPit').textContent = _mMinPit; }
+}
+
+function saveSettings() {
+  S.settings.fuelMins   = _mFuel;
+  S.settings.minPitMins = _mMinPit;
+  closeSettings(); save(); renderAll();
+}
+
+/* ============================================================
+   SETUP ADJUSTERS
+============================================================ */
+function adjSetup(type, d) {
+  if (type === 'fuel')  { _sFuel   = clamp(_sFuel   + d, 10, 360); el('setupFuel').textContent   = _sFuel;   }
+  else                  { _sMinPit = clamp(_sMinPit  + d,  1,  30); el('setupMinPit').textContent = _sMinPit; }
+}
+
+/* ============================================================
+   SHARE / QR
+============================================================ */
+function openShare() {
+  const url = buildShareUrl();
+  el('shareUrl').textContent = url;
+  el('qrWrap').innerHTML = '';
+  try {
+    new QRCode(el('qrWrap'), {
+      text: url, width: 192, height: 192,
+      colorDark: '#000', colorLight: '#fff',
+      correctLevel: QRCode.CorrectLevel.M,
+    });
+  } catch(_) { el('qrWrap').textContent = 'QR unavailable — copy the link below.'; }
+  el('overlayShare').classList.add('show');
+}
+function closeShare() { el('overlayShare').classList.remove('show'); }
+
+function buildShareUrl() {
+  const displayNow  = S.pausedAt || Date.now();
+  const fuelRange   = S.settings.fuelMins * 60000;
+  const stintMs     = S.stintStart ? displayNow - S.stintStart : 0;
+  const fuelLeftMs  = S.phase === 'RACING'
+    ? Math.max(0, fuelRange - stintMs)
+    : (S.prePitFuelMs || 0);
+
+  const snap = {
+    phase: S.phase, stintNum: S.stintNum, pitCount: S.pitStops.length,
+    raceStart: S.raceStart, fuelMins: S.settings.fuelMins,
+    fuelLeftMs, snapshotAt: displayNow,
+  };
+  return window.location.href.split('#')[0] + '#view=' + btoa(JSON.stringify(snap));
+}
+
+function copyUrl() {
+  const url  = el('shareUrl').textContent;
+  const btn  = el('copyBtn');
+  const orig = btn.textContent;
+  const done = () => { btn.textContent = '✅ Copied!'; setTimeout(() => btn.textContent = orig, 2500); };
+  const fail = () => { btn.textContent = '❌ Failed';  setTimeout(() => btn.textContent = orig, 2000); };
+  if (navigator.clipboard) navigator.clipboard.writeText(url).then(done).catch(() => fbCopy(url, done, fail));
+  else fbCopy(url, done, fail);
+}
+
+function fbCopy(text, done, fail) {
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.cssText = 'position:fixed;opacity:0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy') ? done() : fail(); } catch(_) { fail(); }
+  document.body.removeChild(ta);
+}
+
+/* ============================================================
+   READ-ONLY VIEW
+============================================================ */
+function loadRO(encoded) {
+  ['screenSetup','screenRacing','screenPitting'].forEach(id =>
+    el(id).classList.remove('active'));
+  el('settingsBtn').style.display = 'none';
+  el('roBanner').style.display    = 'block';
+  el('screenRO').classList.add('active');
+  el('hdrClock').classList.add('show');
+  el('hdrPill').classList.add('show');
+
+  try {
+    const snap   = JSON.parse(atob(encoded));
+    const raceMs = snap.raceStart ? snap.snapshotAt - snap.raceStart : 0;
+
+    el('raceClock').textContent = hms(raceMs);
+
+    const pill = el('phasePill');
+    pill.textContent = snap.phase || '—';
+    pill.className   = 'phase-pill ' + (snap.phase||'setup').toLowerCase();
+
+    const labels = { RACING:'🏎 RACING', PITTING:'🛑 IN PITS', SETUP:'SETUP' };
+    el('roPhase').textContent    = labels[snap.phase] || snap.phase || '—';
+    el('roRaceTime').textContent = hms(raceMs);
+    el('roStint').textContent    = snap.stintNum  ?? '—';
+    el('roPits').textContent     = snap.pitCount  ?? '—';
+    el('roSnap').textContent     = new Date(snap.snapshotAt).toLocaleTimeString();
+
+    const fuelRange = snap.fuelMins * 60000;
+    const fuelLeft  = snap.fuelLeftMs || 0;
+    const pct       = fuelRange > 0 ? fuelLeft / fuelRange : 0;
+    el('roFuel').textContent = hms(fuelLeft);
+    const bar = el('roFuelBar');
+    bar.style.width      = pct100(pct);
+    bar.style.background = pct > 0.25 ? 'var(--teal)' : pct > 0.12 ? 'var(--yellow)' : 'var(--red)';
+  } catch(_) {
+    el('roPhase').textContent = 'Invalid snapshot data';
+  }
+}
+
+/* ============================================================
+   PERSISTENCE
+============================================================ */
+function save() {
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch(_) {}
+}
+
+/* ============================================================
+   HELPERS
+============================================================ */
+function el(id)         { return document.getElementById(id); }
+function pad(n)         { return String(n).padStart(2, '0'); }
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+function pct100(p)      { return (Math.max(0, Math.min(1, p)) * 100).toFixed(1) + '%'; }
+function vis(id, show)  { const e = el(id); if (e) e.style.display = show ? '' : 'none'; }
+
+function hms(ms) {
+  if (!ms || ms < 0) ms = 0;
+  const t = Math.floor(ms / 1000);
+  return `${pad(Math.floor(t/3600))}:${pad(Math.floor((t%3600)/60))}:${pad(t%60)}`;
+}
+
+function mss(ms) {
+  if (!ms || ms < 0) ms = 0;
+  const t = Math.floor(ms / 1000);
+  return `${Math.floor(t/60)}:${pad(t%60)}`;
+}
+
+/* Close modals on backdrop tap (not the confirm modal — safety) */
+['overlaySettings','overlayShare'].forEach(id => {
+  el(id).addEventListener('click', function(e) {
+    if (e.target === this) this.classList.remove('show');
+  });
+});
+</script>
+</body>
+</html>
